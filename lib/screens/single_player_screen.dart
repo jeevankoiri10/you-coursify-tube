@@ -6,6 +6,7 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import '../models/library.dart';
 import '../models/media.dart';
 import '../state/library_controller.dart';
+import '../widgets/pip_player_scaffold.dart';
 
 /// Plays one saved video, forever. Starts where you left off, loops back to the
 /// start when it ends, and continuously saves your position.
@@ -108,27 +109,19 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: Text(_video.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      body: Column(
-        children: [
-          YoutubePlayer(controller: _player),
-          const Expanded(
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Looping. Reopens right here.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white38),
-                ),
-              ),
-            ),
+    return PipPlayerScaffold(
+      controller: _player,
+      title: _video.title,
+      below: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Looping. Reopens right here.\n'
+            'Minimize the app to keep watching in a floating window.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white38),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../models/library.dart';
 import '../models/media.dart';
 import '../state/library_controller.dart';
 import '../utils/format.dart';
+import '../widgets/pip_player_scaffold.dart';
 
 /// Plays a saved playlist. The current video sits at the top; below it is the
 /// full list with a marker on "where you left off" and per-video progress.
@@ -125,16 +126,20 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     super.dispose();
   }
 
+  void _playPrevious() {
+    final prev = _playlist.currentIndex - 1;
+    _playAt(prev < 0 ? _playlist.videos.length - 1 : prev);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: Text(_playlist.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      body: Column(
+    return PipPlayerScaffold(
+      controller: _player,
+      title: _playlist.title,
+      onNext: _playNext,
+      onPrevious: _playPrevious,
+      below: Column(
         children: [
-          YoutubePlayer(controller: _player),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Align(
