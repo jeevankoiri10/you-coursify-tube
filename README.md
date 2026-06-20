@@ -18,17 +18,29 @@ No recommendations. No autoplay rabbit holes. Just the course you came for.
 
 ## Screenshots
 
-| Home — paste & continue | Directory — folders | Player — resume |
-| :---: | :---: | :---: |
-| ![Home tab](screenshots/home.png) | ![Directory tab](screenshots/directory.png) | ![Player](screenshots/player.png) |
+**1. Home — paste a link, continue watching, and history**
 
-| Playlist | Notes | Export / Import |
-| :---: | :---: | :---: |
-| ![Playlist](screenshots/playlist.png) | ![Notes](screenshots/notes.png) | ![Export and import](screenshots/backup.png) |
+<p align="center">
+  <img src="screenshots/home.png" alt="Home tab" width="280" />
+</p>
 
-> Screenshots live in the `screenshots/` folder. Drop your PNGs there using the
-> filenames above (`home.png`, `directory.png`, `player.png`, `playlist.png`,
-> `notes.png`, `backup.png`) and they'll render here automatically.
+**2. Player — resume playback with custom controls and an "Up next" list**
+
+<p align="center">
+  <img src="screenshots/player.png" alt="Player screen" width="280" />
+</p>
+
+**3. Directory — organize your saved links into folders**
+
+<p align="center">
+  <img src="screenshots/directory.png" alt="Directory tab" width="280" />
+</p>
+
+**4. Export & Import — JSON/CSV backups and automatic snapshots**
+
+<p align="center">
+  <img src="screenshots/backup.png" alt="Export and import screen" width="280" />
+</p>
 
 ---
 
