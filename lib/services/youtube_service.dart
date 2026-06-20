@@ -1,6 +1,7 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../models/media.dart';
+import 'playlist_scraper.dart';
 
 enum LinkKind { video, playlist, invalid }
 
@@ -56,31 +57,15 @@ class YoutubeService {
   }
 
   /// Fetch the full list of videos for a playlist.
+  ///
+  /// Uses our own [PlaylistScraper] because youtube_explode_dart's playlist
+  /// video parser is broken against the current YouTube page format.
   static Future<PlaylistData> fetchPlaylist(String playlistId) async {
-    final yt = YoutubeExplode();
-    try {
-      final playlist = await yt.playlists.get(playlistId);
-      final videos = <VideoItem>[];
-      await for (final v in yt.playlists.getVideos(playlistId)) {
-        videos.add(
-          VideoItem(
-            videoId: v.id.value,
-            title: v.title,
-            thumbnailUrl: v.thumbnails.mediumResUrl,
-            durationSeconds: v.duration?.inSeconds,
-          ),
-        );
-      }
-      if (videos.isEmpty) {
-        throw StateError('This playlist has no playable videos.');
-      }
-      return PlaylistData(
-        playlistId: playlistId,
-        title: playlist.title.isEmpty ? 'Playlist' : playlist.title,
-        videos: videos,
-      );
-    } finally {
-      yt.close();
-    }
+    final result = await PlaylistScraper.fetch(playlistId);
+    return PlaylistData(
+      playlistId: playlistId,
+      title: result.title.isEmpty ? 'Playlist' : result.title,
+      videos: result.videos,
+    );
   }
 }
