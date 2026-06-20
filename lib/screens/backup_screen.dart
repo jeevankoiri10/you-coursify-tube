@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../services/auto_backup_service.dart';
 import '../services/backup_service.dart';
 import '../state/library_controller.dart';
+import '../utils/format.dart';
 
 /// One place for all export / import actions.
 class BackupScreen extends StatefulWidget {
@@ -15,8 +17,35 @@ class BackupScreen extends StatefulWidget {
 
 class _BackupScreenState extends State<BackupScreen> {
   bool _busy = false;
+  DateTime? _autoTime;
+  String? _autoPath;
 
   LibraryController get _c => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAutoInfo();
+  }
+
+  Future<void> _loadAutoInfo() async {
+    final time = await AutoBackupService.latestTime();
+    final path = await AutoBackupService.directoryPath();
+    if (mounted) {
+      setState(() {
+        _autoTime = time;
+        _autoPath = path;
+      });
+    }
+  }
+
+  String get _autoLabel {
+    final d = _autoTime;
+    if (d == null) return 'No automatic backup yet';
+    String two(int n) => n.toString().padLeft(2, '0');
+    return 'Last: ${shortDate(d.millisecondsSinceEpoch)} at '
+        '${two(d.hour)}:${two(d.minute)}';
+  }
 
   void _snack(String message) {
     if (!mounted) return;
@@ -69,6 +98,41 @@ class _BackupScreenState extends State<BackupScreen> {
     });
   }
 
+  Future<void> _restoreAuto() async {
+    final file = await AutoBackupService.latest();
+    if (file == null) {
+      _snack('No automatic backup exists yet.');
+      return;
+    }
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore auto-backup?'),
+        content: Text(
+          'This replaces all current data with the most recent automatic '
+          'backup ($_autoLabel).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _run(() async {
+      final content = await file.readAsString();
+      await _c.importJson(content);
+      _snack('Restored from automatic backup.');
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -115,6 +179,54 @@ class _BackupScreenState extends State<BackupScreen> {
                     title: 'Import data (JSON)',
                     subtitle: 'Restore from a backup file. Replaces current data.',
                     onTap: _busy ? null : _importJson,
+                  ),
+                  const SizedBox(height: 20),
+                  const _Heading('Automatic backups'),
+                  Card(
+                    color: const Color(0xFF1C1C20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.backup_outlined,
+                                  size: 18, color: Color(0xFF7CB342)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _autoLabel,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Saved automatically every few minutes and when you '
+                            'leave the app (keeps the last 15).',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          if (_autoPath != null) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              _autoPath!,
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 11),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _ActionTile(
+                    icon: Icons.restore,
+                    title: 'Restore latest auto-backup',
+                    subtitle: 'Replace current data with the newest snapshot.',
+                    onTap: _busy ? null : _restoreAuto,
                   ),
                   const SizedBox(height: 20),
                   const _Heading('Spreadsheet'),

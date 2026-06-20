@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'screens/home_shell.dart';
+import 'services/auto_backup_service.dart';
 import 'services/storage.dart';
 import 'state/library_controller.dart';
 
@@ -12,10 +15,64 @@ Future<void> main() async {
   runApp(CoursifyApp(controller: LibraryController(library)));
 }
 
-class CoursifyApp extends StatelessWidget {
+class CoursifyApp extends StatefulWidget {
   const CoursifyApp({super.key, required this.controller});
 
   final LibraryController controller;
+
+  @override
+  State<CoursifyApp> createState() => _CoursifyAppState();
+}
+
+class _CoursifyAppState extends State<CoursifyApp> with WidgetsBindingObserver {
+  Timer? _timer;
+  bool _dirty = false;
+  int _lastBackupMs = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Any data change marks the library for the next auto-backup.
+    widget.controller.addListener(_markDirty);
+    // Periodically flush a backup while the app is open.
+    _timer = Timer.periodic(const Duration(minutes: 10), (_) => _flush());
+  }
+
+  void _markDirty() => _dirty = true;
+
+  Future<void> _flush({bool force = false}) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    // Never back up more than once every 5s — collapses the rapid
+    // inactive/hidden/paused lifecycle burst into a single write.
+    if (now - _lastBackupMs < 5 * 1000) return;
+    if (!force && !_dirty) return;
+    _dirty = false;
+    _lastBackupMs = now;
+    try {
+      await AutoBackupService.backup(widget.controller, timestampMs: now);
+    } catch (_) {
+      // Best-effort; manual export remains available.
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _flush(force: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    widget.controller.removeListener(_markDirty);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +93,7 @@ class CoursifyApp extends StatelessWidget {
           indicatorColor: const Color(0x33FF4D4D),
         ),
       ),
-      home: HomeShell(controller: controller),
+      home: HomeShell(controller: widget.controller),
     );
   }
 }
