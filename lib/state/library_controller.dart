@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/library.dart';
@@ -230,6 +232,36 @@ class LibraryController extends ChangeNotifier {
   /// Removes a note. Also drops empty notes (used when leaving a blank one).
   Future<void> deleteNote(String noteId) async {
     _library.notes.removeWhere((n) => n.id == noteId);
+    await persist();
+    notifyListeners();
+  }
+
+  // ---- Backup / restore --------------------------------------------------
+
+  /// The entire library (folders, links, notes, progress, current item) as a
+  /// pretty-printed JSON string.
+  String exportJson() =>
+      const JsonEncoder.withIndent('  ').convert(_library.toJson());
+
+  /// Replaces ALL current data with the contents of an exported JSON document.
+  /// Throws if the JSON is not a valid library export.
+  Future<void> importJson(String jsonString) async {
+    final map = jsonDecode(jsonString) as Map<String, dynamic>;
+    final imported = Library.fromJson(map);
+    _library.folders
+      ..clear()
+      ..addAll(imported.folders);
+    _library.items
+      ..clear()
+      ..addAll(imported.items);
+    _library.notes
+      ..clear()
+      ..addAll(imported.notes);
+    _library.progress
+      ..clear()
+      ..addAll(imported.progress);
+    _library.currentItemId = imported.currentItemId;
+    _ensureDefaultFolder();
     await persist();
     notifyListeners();
   }

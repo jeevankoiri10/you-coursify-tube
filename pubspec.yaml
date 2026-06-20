@@ -39,6 +39,9 @@ dependencies:
   youtube_explode_dart: ^3.1.0
   http: ^1.6.0
   simple_pip_mode: ^1.1.0
+  share_plus: 10.1.4
+  file_picker: 8.3.7
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

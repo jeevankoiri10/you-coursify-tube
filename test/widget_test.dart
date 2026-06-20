@@ -79,6 +79,28 @@ void main() {
     expect(controller.startFor('other'), 0);
   });
 
+  test('export then import restores the whole library', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    final source = LibraryController(Library.empty());
+    final folder = await source.createFolder('Maths');
+    await source.addItem(
+      type: ItemType.video,
+      folderId: folder.id,
+      video: VideoItem(videoId: 'v1', title: 'Lecture 1'),
+    );
+    await source.saveProgress('v1', position: 12, duration: 60);
+
+    final json = source.exportJson();
+
+    final target = LibraryController(Library.empty());
+    await target.importJson(json);
+
+    expect(target.folders.any((f) => f.name == 'Maths'), isTrue);
+    expect(target.itemCountInFolder(folder.id), 1);
+    expect(target.startFor('v1'), 12);
+  });
+
   test('linkify splits youtube links out of note text', () {
     final segs = linkifyYoutube(
       'see https://youtu.be/abc and youtube.com/watch?v=xyz done',
