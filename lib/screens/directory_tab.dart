@@ -73,7 +73,8 @@ class DirectoryTab extends StatelessWidget {
                 title: Text(folder.name,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text(
-                    '${controller.itemCountInFolder(folder.id)} links'),
+                    '${controller.itemCountInFolder(folder.id)} links · '
+                    '${controller.noteCountInFolder(folder.id)} notes'),
                 trailing: folder.id == LibraryController.defaultFolderId
                     ? const Icon(Icons.chevron_right)
                     : PopupMenuButton<String>(

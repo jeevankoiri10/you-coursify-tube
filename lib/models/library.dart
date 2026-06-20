@@ -80,6 +80,7 @@ class LibraryItem {
 class Note {
   Note({
     required this.id,
+    this.folderId = 'default',
     this.title = '',
     this.body = '',
     this.createdAtMs = 0,
@@ -87,6 +88,7 @@ class Note {
   });
 
   final String id;
+  String folderId;
   String title;
   String body;
   final int createdAtMs;
@@ -100,6 +102,7 @@ class Note {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'folderId': folderId,
         'title': title,
         'body': body,
         'createdAtMs': createdAtMs,
@@ -108,6 +111,7 @@ class Note {
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
         id: json['id'] as String,
+        folderId: (json['folderId'] as String?) ?? 'default',
         title: (json['title'] as String?) ?? '',
         body: (json['body'] as String?) ?? '',
         createdAtMs: (json['createdAtMs'] as num?)?.toInt() ?? 0,

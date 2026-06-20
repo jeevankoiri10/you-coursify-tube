@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/library.dart';
+import '../utils/format.dart';
 
 /// A row representing one saved link (video or playlist) for History and folder
 /// listings.
@@ -10,11 +11,15 @@ class ItemTile extends StatelessWidget {
     required this.item,
     required this.onTap,
     this.onDelete,
+    this.showAddedDate = false,
   });
 
   final LibraryItem item;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+
+  /// When true, shows the added date under the item (used in folders).
+  final bool showAddedDate;
 
   @override
   Widget build(BuildContext context) {
@@ -59,11 +64,21 @@ class ItemTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      subtitle: Text(
-        item.subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: Colors.white60, fontSize: 12),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          if (showAddedDate)
+            Text(
+              'Added ${shortDate(item.addedAtMs)}',
+              style: const TextStyle(color: Colors.white38, fontSize: 11),
+            ),
+        ],
       ),
       trailing: onDelete == null
           ? const Icon(Icons.play_arrow)

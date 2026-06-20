@@ -4,7 +4,6 @@ import '../navigation.dart';
 import '../state/library_controller.dart';
 import 'directory_tab.dart';
 import 'home_tab.dart';
-import 'notes_tab.dart';
 
 /// The root screen after launch: a bottom nav bar switching between Home (paste,
 /// continue watching, history) and Directory (folders).
@@ -40,7 +39,6 @@ class _HomeShellState extends State<HomeShell> {
         final tabs = [
           HomeTab(controller: widget.controller),
           DirectoryTab(controller: widget.controller),
-          NotesTab(controller: widget.controller),
         ];
         return Scaffold(
           appBar: AppBar(
@@ -61,11 +59,6 @@ class _HomeShellState extends State<HomeShell> {
                 icon: Icon(Icons.folder_outlined),
                 selectedIcon: Icon(Icons.folder),
                 label: 'Directory',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.sticky_note_2_outlined),
-                selectedIcon: Icon(Icons.sticky_note_2),
-                label: 'Notes',
               ),
             ],
           ),

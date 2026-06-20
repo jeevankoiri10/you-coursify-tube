@@ -85,6 +85,10 @@ class LibraryController extends ChangeNotifier {
         .where((i) => i.folderId == folderId)
         .toList()
         .forEach((i) => i.folderId = defaultFolderId);
+    _library.notes
+        .where((n) => n.folderId == folderId)
+        .toList()
+        .forEach((n) => n.folderId = defaultFolderId);
     _library.folders.removeWhere((f) => f.id == folderId);
     await persist();
     notifyListeners();
@@ -128,14 +132,22 @@ class LibraryController extends ChangeNotifier {
 
   // ---- Notes -------------------------------------------------------------
 
-  /// Notes, most recently updated first.
-  List<Note> get notes => _library.notes.toList()
-    ..sort((a, b) => b.updatedAtMs.compareTo(a.updatedAtMs));
+  /// Notes inside a folder, most recently updated first.
+  List<Note> notesInFolder(String folderId) =>
+      _library.notes.where((n) => n.folderId == folderId).toList()
+        ..sort((a, b) => b.updatedAtMs.compareTo(a.updatedAtMs));
 
-  /// Builds a fresh note. It is only added to the library once [saveNote] is
-  /// called, so abandoning a blank note leaves nothing behind.
-  Note createNote() =>
-      Note(id: _id('note'), createdAtMs: _now(), updatedAtMs: _now());
+  int noteCountInFolder(String folderId) =>
+      _library.notes.where((n) => n.folderId == folderId).length;
+
+  /// Builds a fresh note for a folder. It is only added to the library once
+  /// [saveNote] is called, so abandoning a blank note leaves nothing behind.
+  Note createNote(String folderId) => Note(
+        id: _id('note'),
+        folderId: folderId,
+        createdAtMs: _now(),
+        updatedAtMs: _now(),
+      );
 
   Future<void> saveNote(Note note) async {
     note.updatedAtMs = _now();

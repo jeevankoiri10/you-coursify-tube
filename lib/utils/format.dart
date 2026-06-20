@@ -9,3 +9,29 @@ String formatDuration(num? totalSeconds) {
   final ss = seconds.toString().padLeft(2, '0');
   return hours > 0 ? '$hours:$mm:$ss' : '$mm:$ss';
 }
+
+const _months = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// A grouping label for a moment in time: "Today", "Yesterday", or a date.
+String dayLabel(int millis) {
+  if (millis <= 0) return 'Earlier';
+  final d = DateTime.fromMillisecondsSinceEpoch(millis);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final that = DateTime(d.year, d.month, d.day);
+  final diff = today.difference(that).inDays;
+  if (diff == 0) return 'Today';
+  if (diff == 1) return 'Yesterday';
+  if (diff > 1 && diff < 7) return '$diff days ago';
+  return '${_months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+/// A compact absolute date like "Jun 16, 2026".
+String shortDate(int millis) {
+  if (millis <= 0) return 'unknown date';
+  final d = DateTime.fromMillisecondsSinceEpoch(millis);
+  return '${_months[d.month - 1]} ${d.day}, ${d.year}';
+}
