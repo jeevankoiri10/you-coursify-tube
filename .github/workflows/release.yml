@@ -1,6 +1,8 @@
 name: Release
 
-# Build a signed APK + AAB and publish a GitHub Release whenever a v* tag is pushed.
+# On every v* tag:
+#   build  – Android: signed APK + AAB → GitHub Release, and → Play internal testing
+#   ios    – iOS: signed IPA → TestFlight  (macOS runner; off until IOS.md is set up)
 # Example:  git tag v1.1.0 && git push origin v1.1.0
 on:
   push:
@@ -86,3 +88,62 @@ jobs:
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
           track: internal
           status: completed
+
+  # iOS build + TestFlight upload. Runs on macOS (iOS can't build elsewhere).
+  # Gated on the IOS_RELEASE_ENABLED repository variable so it stays off until
+  # the Apple Developer setup is done — see IOS.md. Requires these secrets:
+  #   APPSTORE_API_KEY_ID, APPSTORE_API_ISSUER_ID, APPSTORE_API_PRIVATE_KEY, APPLE_TEAM_ID
+  ios:
+    name: Build & upload iOS to TestFlight
+    runs-on: macos-latest
+    if: ${{ vars.IOS_RELEASE_ENABLED == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install App Store Connect API key
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$API_PRIVATE_KEY" > "$HOME/private_keys/AuthKey_${API_KEY_ID}.p8"
+
+      - name: Generate ExportOptions.plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > ios/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>destination</key><string>export</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Build signed IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          xcrun altool --upload-app -t ios \
+            -f build/ios/ipa/*.ipa \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$API_ISSUER_ID"

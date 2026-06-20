@@ -16,6 +16,17 @@ No recommendations. No autoplay rabbit holes. Just the course you came for.
 
 ---
 
+## Download
+
+- **Android** — grab the latest APK from the [Releases page](../../releases/latest)
+  (allow "install from unknown sources"). Play Store internal-testing builds are
+  automated — see [PLAYSTORE.md](PLAYSTORE.md).
+- **iOS** — distributed via TestFlight once set up; see [IOS.md](IOS.md).
+
+Every `v*` tag builds and publishes both platforms automatically via GitHub Actions.
+
+---
+
 ## Screenshots
 
 **1. Home — paste a link, continue watching, and history**
