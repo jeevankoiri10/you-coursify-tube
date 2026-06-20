@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:coursify_yt/models/app_state.dart';
+import 'package:coursify_yt/models/library.dart';
+import 'package:coursify_yt/models/media.dart';
 import 'package:coursify_yt/services/youtube_service.dart';
 
 void main() {
@@ -24,14 +25,26 @@ void main() {
     expect(parsed.kind, LinkKind.invalid);
   });
 
-  test('app state round-trips through json', () {
-    final state = AppState(
-      mode: LibraryMode.single,
-      single: VideoItem(videoId: 'abc', title: 'Demo', positionSeconds: 42.5),
+  test('library round-trips through json with folders and history', () {
+    final library = Library(
+      folders: [Folder(id: 'default', name: 'General', createdAtMs: 1)],
+      items: [
+        LibraryItem(
+          id: 'item_1',
+          type: ItemType.video,
+          folderId: 'default',
+          video: VideoItem(videoId: 'abc', title: 'Demo', positionSeconds: 42.5),
+          addedAtMs: 10,
+          lastOpenedAtMs: 20,
+        ),
+      ],
+      currentItemId: 'item_1',
     );
-    final restored = AppState.fromJson(state.toJson());
-    expect(restored.mode, LibraryMode.single);
-    expect(restored.single?.videoId, 'abc');
-    expect(restored.single?.positionSeconds, 42.5);
+
+    final restored = Library.fromJson(library.toJson());
+    expect(restored.folders.single.name, 'General');
+    expect(restored.items.single.video?.positionSeconds, 42.5);
+    expect(restored.items.single.lastOpenedAtMs, 20);
+    expect(restored.currentItemId, 'item_1');
   });
 }

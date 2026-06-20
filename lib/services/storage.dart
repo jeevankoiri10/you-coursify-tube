@@ -2,33 +2,26 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/app_state.dart';
+import '../models/library.dart';
 
-/// Persists the single source of truth ([AppState]) to disk so the app can
-/// reopen exactly where it was — same video/playlist, same position.
+/// Persists the whole [Library] (folders, saved links, positions, history) so
+/// the app reopens exactly where it was.
 class Storage {
-  static const _key = 'floater_app_state_v1';
+  static const _key = 'coursify_library_v1';
 
-  static Future<AppState> load() async {
+  static Future<Library> load() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
-    if (raw == null || raw.isEmpty) return AppState();
+    if (raw == null || raw.isEmpty) return Library.empty();
     try {
-      final map = jsonDecode(raw) as Map<String, dynamic>;
-      return AppState.fromJson(map);
+      return Library.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
-      // Corrupt/old data: start fresh rather than crash on launch.
-      return AppState();
+      return Library.empty();
     }
   }
 
-  static Future<void> save(AppState state) async {
+  static Future<void> save(Library library) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(state.toJson()));
-  }
-
-  static Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    await prefs.setString(_key, jsonEncode(library.toJson()));
   }
 }

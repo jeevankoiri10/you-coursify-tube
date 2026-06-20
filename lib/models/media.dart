@@ -1,13 +1,7 @@
-/// Data models that describe what the Floater app should show on launch.
-///
-/// The whole point of the app is that you never re-type a link: whatever you
-/// last pasted (a single video or a whole playlist) is persisted, together with
-/// the exact position you stopped at, so the next launch resumes instantly.
+/// The playable units: a single video or a playlist. Each remembers the exact
+/// position the user left off at so playback can resume automatically.
 library;
 
-enum LibraryMode { empty, single, playlist }
-
-/// A single watchable video plus the playback progress we remember for it.
 class VideoItem {
   VideoItem({
     required this.videoId,
@@ -23,7 +17,7 @@ class VideoItem {
   final String? thumbnailUrl;
   final int? durationSeconds;
 
-  /// Where the user left off, in seconds. This is what makes "resume" work.
+  /// Where the user left off, in seconds — what makes "resume" work.
   double positionSeconds;
   bool completed;
 
@@ -58,8 +52,6 @@ class PlaylistData {
   final String playlistId;
   final String title;
   final List<VideoItem> videos;
-
-  /// Index into [videos] of the "where I left off" entry.
   int currentIndex;
 
   VideoItem get current => videos[currentIndex.clamp(0, videos.length - 1)];
@@ -79,36 +71,4 @@ class PlaylistData {
             .map((e) => VideoItem.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
       );
-}
-
-/// The complete persisted state of the app.
-class AppState {
-  AppState({this.mode = LibraryMode.empty, this.single, this.playlist});
-
-  LibraryMode mode;
-  VideoItem? single;
-  PlaylistData? playlist;
-
-  Map<String, dynamic> toJson() => {
-        'mode': mode.name,
-        'single': single?.toJson(),
-        'playlist': playlist?.toJson(),
-      };
-
-  factory AppState.fromJson(Map<String, dynamic> json) {
-    final mode = LibraryMode.values.firstWhere(
-      (m) => m.name == json['mode'],
-      orElse: () => LibraryMode.empty,
-    );
-    return AppState(
-      mode: mode,
-      single: json['single'] == null
-          ? null
-          : VideoItem.fromJson(Map<String, dynamic>.from(json['single'] as Map)),
-      playlist: json['playlist'] == null
-          ? null
-          : PlaylistData.fromJson(
-              Map<String, dynamic>.from(json['playlist'] as Map)),
-    );
-  }
 }

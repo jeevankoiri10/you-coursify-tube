@@ -3,17 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
-import '../models/app_state.dart';
-import '../services/storage.dart';
-import 'paste_screen.dart';
+import '../models/library.dart';
+import '../models/media.dart';
+import '../state/library_controller.dart';
 
-/// Plays one video, forever. It starts where you left off, loops back to the
-/// start when it ends, and continuously saves your position so the next launch
-/// resumes automatically.
+/// Plays one saved video, forever. Starts where you left off, loops back to the
+/// start when it ends, and continuously saves your position.
 class SinglePlayerScreen extends StatefulWidget {
-  const SinglePlayerScreen({super.key, required this.video});
+  const SinglePlayerScreen({
+    super.key,
+    required this.item,
+    required this.controller,
+  });
 
-  final VideoItem video;
+  final LibraryItem item;
+  final LibraryController controller;
 
   @override
   State<SinglePlayerScreen> createState() => _SinglePlayerScreenState();
@@ -21,19 +25,18 @@ class SinglePlayerScreen extends StatefulWidget {
 
 class _SinglePlayerScreenState extends State<SinglePlayerScreen>
     with WidgetsBindingObserver {
-  late final YoutubePlayerController _controller;
-  late final VideoItem _video;
+  late final YoutubePlayerController _player;
+  VideoItem get _video => widget.item.video!;
   double _lastPosition = 0;
   Timer? _saveTimer;
 
   @override
   void initState() {
     super.initState();
-    _video = widget.video;
     _lastPosition = _video.positionSeconds;
     WidgetsBinding.instance.addObserver(this);
 
-    _controller = YoutubePlayerController(
+    _player = YoutubePlayerController(
       params: const YoutubePlayerParams(
         showFullscreenButton: true,
         strictRelatedVideos: true,
@@ -41,42 +44,36 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
       ),
     );
 
-    // Resume exactly where we stopped last time.
-    _controller.loadVideoById(
+    _player.loadVideoById(
       videoId: _video.videoId,
       startSeconds: _video.positionSeconds,
     );
 
-    // Loop forever: when the video ends, jump back to the start and replay.
-    _controller.stream.listen((value) {
+    _player.stream.listen((value) {
       if (!mounted) return;
       if (value.playerState == PlayerState.ended) {
         _lastPosition = 0;
-        _controller.seekTo(seconds: 0, allowSeekAhead: true);
-        _controller.playVideo();
+        _player.seekTo(seconds: 0, allowSeekAhead: true);
+        _player.playVideo();
       }
       final title = value.metaData.title;
       if (title.isNotEmpty && title != _video.title) {
         _video.title = title;
-        if (mounted) setState(() {});
+        widget.controller.touch();
+        setState(() {});
       }
     });
 
-    // Track the play head so we always know the resume point.
-    _controller.videoStateStream.listen((state) {
+    _player.videoStateStream.listen((state) {
       _lastPosition = state.position.inMilliseconds / 1000.0;
     });
 
-    // Persist periodically while watching.
-    _saveTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _persist(),
-    );
+    _saveTimer = Timer.periodic(const Duration(seconds: 5), (_) => _persist());
   }
 
   Future<void> _persist() async {
     _video.positionSeconds = _lastPosition;
-    await Storage.save(AppState(mode: LibraryMode.single, single: _video));
+    await widget.controller.persist();
   }
 
   @override
@@ -89,21 +86,12 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
     }
   }
 
-  Future<void> _changeLink() async {
-    await _persist();
-    await Storage.clear();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const PasteScreen()),
-    );
-  }
-
   @override
   void dispose() {
     _saveTimer?.cancel();
     _persist();
     WidgetsBinding.instance.removeObserver(this);
-    _controller.close();
+    _player.close();
     super.dispose();
   }
 
@@ -112,28 +100,17 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(
-          _video.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Paste a different link',
-            icon: const Icon(Icons.edit),
-            onPressed: _changeLink,
-          ),
-        ],
+        title: Text(_video.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
       body: Column(
         children: [
-          YoutubePlayer(controller: _controller),
+          YoutubePlayer(controller: _player),
           const Expanded(
             child: Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'Looping. Closes and reopens right here.',
+                  'Looping. Reopens right here.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white38),
                 ),

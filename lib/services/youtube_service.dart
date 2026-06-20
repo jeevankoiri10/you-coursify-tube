@@ -1,6 +1,6 @@
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
-import '../models/app_state.dart';
+import '../models/media.dart';
 
 enum LinkKind { video, playlist, invalid }
 

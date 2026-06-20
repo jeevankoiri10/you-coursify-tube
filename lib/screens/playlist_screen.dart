@@ -3,18 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
-import '../models/app_state.dart';
-import '../services/storage.dart';
+import '../models/library.dart';
+import '../models/media.dart';
+import '../state/library_controller.dart';
 import '../utils/format.dart';
-import 'paste_screen.dart';
 
-/// Plays a whole playlist. The current video sits at the top; below it is the
-/// full list with a marker on "where you left off" and a progress line on each
-/// item. Reopening the app returns to this exact spot.
+/// Plays a saved playlist. The current video sits at the top; below it is the
+/// full list with a marker on "where you left off" and per-video progress.
 class PlaylistScreen extends StatefulWidget {
-  const PlaylistScreen({super.key, required this.playlist});
+  const PlaylistScreen({
+    super.key,
+    required this.item,
+    required this.controller,
+  });
 
-  final PlaylistData playlist;
+  final LibraryItem item;
+  final LibraryController controller;
 
   @override
   State<PlaylistScreen> createState() => _PlaylistScreenState();
@@ -22,8 +26,8 @@ class PlaylistScreen extends StatefulWidget {
 
 class _PlaylistScreenState extends State<PlaylistScreen>
     with WidgetsBindingObserver {
-  late final YoutubePlayerController _controller;
-  late final PlaylistData _playlist;
+  late final YoutubePlayerController _player;
+  PlaylistData get _playlist => widget.item.playlist!;
   double _lastPosition = 0;
   Timer? _saveTimer;
 
@@ -32,11 +36,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   @override
   void initState() {
     super.initState();
-    _playlist = widget.playlist;
     _lastPosition = _current.positionSeconds;
     WidgetsBinding.instance.addObserver(this);
 
-    _controller = YoutubePlayerController(
+    _player = YoutubePlayerController(
       params: const YoutubePlayerParams(
         showFullscreenButton: true,
         strictRelatedVideos: true,
@@ -44,12 +47,12 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       ),
     );
 
-    _controller.loadVideoById(
+    _player.loadVideoById(
       videoId: _current.videoId,
       startSeconds: _current.positionSeconds,
     );
 
-    _controller.stream.listen((value) {
+    _player.stream.listen((value) {
       if (!mounted) return;
       if (value.playerState == PlayerState.ended) {
         _current.completed = true;
@@ -59,33 +62,30 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       final title = value.metaData.title;
       if (title.isNotEmpty && title != _current.title) {
         _current.title = title;
+        widget.controller.touch();
         setState(() {});
       }
     });
 
-    _controller.videoStateStream.listen((state) {
+    _player.videoStateStream.listen((state) {
       _lastPosition = state.position.inMilliseconds / 1000.0;
     });
 
-    _saveTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _persist(),
-    );
+    _saveTimer = Timer.periodic(const Duration(seconds: 5), (_) => _persist());
   }
 
   Future<void> _persist() async {
     _current.positionSeconds = _lastPosition;
-    await Storage.save(AppState(mode: LibraryMode.playlist, playlist: _playlist));
+    await widget.controller.persist();
   }
 
-  /// Switch the player to a specific video, remembering progress on the one we
-  /// are leaving.
   Future<void> _playAt(int index) async {
     if (index < 0 || index >= _playlist.videos.length) return;
     _current.positionSeconds = _lastPosition;
     setState(() => _playlist.currentIndex = index);
+    widget.controller.touch();
     _lastPosition = _current.positionSeconds;
-    await _controller.loadVideoById(
+    await _player.loadVideoById(
       videoId: _current.videoId,
       startSeconds: _current.positionSeconds,
     );
@@ -94,17 +94,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
   void _playNext() {
     final next = _playlist.currentIndex + 1;
-    // Loop back to the start of the playlist once the last video finishes.
     _playAt(next >= _playlist.videos.length ? 0 : next);
-  }
-
-  Future<void> _changeLink() async {
-    await _persist();
-    await Storage.clear();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const PasteScreen()),
-    );
   }
 
   @override
@@ -122,7 +112,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     _saveTimer?.cancel();
     _persist();
     WidgetsBinding.instance.removeObserver(this);
-    _controller.close();
+    _player.close();
     super.dispose();
   }
 
@@ -131,51 +121,38 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(
-          _playlist.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Paste a different link',
-            icon: const Icon(Icons.edit),
-            onPressed: _changeLink,
-          ),
-        ],
+        title: Text(_playlist.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
       body: Column(
         children: [
-          YoutubePlayer(controller: _controller),
+          YoutubePlayer(controller: _player),
           Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Row(
-                  children: [
-                    Text(
-                      'Up next · ${_playlist.currentIndex + 1}/${_playlist.videos.length}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Up next · ${_playlist.currentIndex + 1}/${_playlist.videos.length}',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _playlist.videos.length,
-                  itemBuilder: (context, index) {
-                    final v = _playlist.videos[index];
-                    final isCurrent = index == _playlist.currentIndex;
-                    return _PlaylistTile(
-                      index: index,
-                      video: v,
-                      isCurrent: isCurrent,
-                      onTap: () => _playAt(index),
-                    );
-                  },
-                ),
-              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _playlist.videos.length,
+              itemBuilder: (context, index) {
+                final v = _playlist.videos[index];
+                return _PlaylistTile(
+                  index: index,
+                  video: v,
+                  isCurrent: index == _playlist.currentIndex,
+                  onTap: () => _playAt(index),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -199,9 +176,8 @@ class _PlaylistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final watched = video.positionSeconds;
     final total = video.durationSeconds;
-    final progress = (total != null && total > 0)
-        ? (watched / total).clamp(0.0, 1.0)
-        : 0.0;
+    final progress =
+        (total != null && total > 0) ? (watched / total).clamp(0.0, 1.0) : 0.0;
 
     final subtitle = video.completed
         ? 'Watched'
@@ -217,7 +193,6 @@ class _PlaylistTile extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
                 width: 96,
@@ -249,8 +224,8 @@ class _PlaylistTile extends StatelessWidget {
                             value: progress,
                             minHeight: 3,
                             backgroundColor: Colors.white24,
-                            valueColor: const AlwaysStoppedAnimation(
-                                Color(0xFFFF4D4D)),
+                            valueColor:
+                                const AlwaysStoppedAnimation(Color(0xFFFF4D4D)),
                           ),
                         ),
                     ],
