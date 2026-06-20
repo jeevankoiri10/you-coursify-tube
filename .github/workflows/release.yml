@@ -71,3 +71,18 @@ jobs:
             "YouCoursifyTube-${GITHUB_REF_NAME}.aab" \
             --title "You Coursify Tube ${GITHUB_REF_NAME}" \
             --generate-notes
+
+      # Upload the AAB to Google Play's Internal testing track.
+      # Inert until the PLAY_SERVICE_ACCOUNT_JSON secret is set (see PLAYSTORE.md),
+      # so the GitHub Release above always succeeds even before Play is configured.
+      # NOTE: the very first release for this package must be uploaded MANUALLY in
+      # the Play Console once — the API rejects uploads until a build exists.
+      - name: Upload to Google Play (internal testing)
+        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.youcoursifytube.app
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed

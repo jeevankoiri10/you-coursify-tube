@@ -21,25 +21,25 @@ No recommendations. No autoplay rabbit holes. Just the course you came for.
 **1. Home — paste a link, continue watching, and history**
 
 <p align="center">
-  <img src="screenshots/home.png" alt="Home tab" width="280" />
+  <img src="assets/screenshots/2.jpg" alt="Home tab" width="280" />
 </p>
 
-**2. Player — resume playback with custom controls and an "Up next" list**
+**2. Directory — organize your saved links into folders**
 
 <p align="center">
-  <img src="screenshots/player.png" alt="Player screen" width="280" />
+  <img src="assets/screenshots/3.jpg" alt="Directory tab" width="280" />
 </p>
 
-**3. Directory — organize your saved links into folders**
+**3. Inside a folder — saved videos and playlists, with notes**
 
 <p align="center">
-  <img src="screenshots/directory.png" alt="Directory tab" width="280" />
+  <img src="assets/screenshots/1.jpg" alt="Folder contents" width="280" />
 </p>
 
-**4. Export & Import — JSON/CSV backups and automatic snapshots**
+**4. Picture-in-picture — keep watching while you use other apps**
 
 <p align="center">
-  <img src="screenshots/backup.png" alt="Export and import screen" width="280" />
+  <img src="assets/screenshots/5.jpg" alt="Picture-in-picture mode" width="280" />
 </p>
 
 ---
