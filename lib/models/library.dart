@@ -75,6 +75,46 @@ class LibraryItem {
       );
 }
 
+/// A free-text study note. Any YouTube links in [body] are made tappable in the
+/// UI and open inside the app.
+class Note {
+  Note({
+    required this.id,
+    this.title = '',
+    this.body = '',
+    this.createdAtMs = 0,
+    this.updatedAtMs = 0,
+  });
+
+  final String id;
+  String title;
+  String body;
+  final int createdAtMs;
+  int updatedAtMs;
+
+  String get displayTitle {
+    if (title.trim().isNotEmpty) return title.trim();
+    final firstLine = body.trim().split('\n').first.trim();
+    return firstLine.isEmpty ? 'Untitled note' : firstLine;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'body': body,
+        'createdAtMs': createdAtMs,
+        'updatedAtMs': updatedAtMs,
+      };
+
+  factory Note.fromJson(Map<String, dynamic> json) => Note(
+        id: json['id'] as String,
+        title: (json['title'] as String?) ?? '',
+        body: (json['body'] as String?) ?? '',
+        createdAtMs: (json['createdAtMs'] as num?)?.toInt() ?? 0,
+        updatedAtMs: (json['updatedAtMs'] as num?)?.toInt() ?? 0,
+      );
+}
+
 /// A named directory that groups saved links.
 class Folder {
   Folder({required this.id, required this.name, this.createdAtMs = 0});
@@ -99,16 +139,19 @@ class Library {
   Library({
     required this.folders,
     required this.items,
+    required this.notes,
     this.currentItemId,
   });
 
   final List<Folder> folders;
   final List<LibraryItem> items;
+  final List<Note> notes;
   String? currentItemId;
 
   Map<String, dynamic> toJson() => {
         'folders': folders.map((f) => f.toJson()).toList(),
         'items': items.map((i) => i.toJson()).toList(),
+        'notes': notes.map((n) => n.toJson()).toList(),
         'currentItemId': currentItemId,
       };
 
@@ -119,8 +162,11 @@ class Library {
         items: ((json['items'] as List?) ?? const [])
             .map((e) => LibraryItem.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
+        notes: ((json['notes'] as List?) ?? const [])
+            .map((e) => Note.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
         currentItemId: json['currentItemId'] as String?,
       );
 
-  factory Library.empty() => Library(folders: [], items: []);
+  factory Library.empty() => Library(folders: [], items: [], notes: []);
 }

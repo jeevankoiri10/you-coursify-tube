@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:coursify_yt/models/library.dart';
 import 'package:coursify_yt/models/media.dart';
 import 'package:coursify_yt/services/youtube_service.dart';
+import 'package:coursify_yt/utils/youtube_links.dart';
 
 void main() {
   test('parses a single video link', () {
@@ -38,6 +39,14 @@ void main() {
           lastOpenedAtMs: 20,
         ),
       ],
+      notes: [
+        Note(
+          id: 'note_1',
+          title: 'Study',
+          body: 'Watch https://youtu.be/abc later',
+          updatedAtMs: 5,
+        ),
+      ],
       currentItemId: 'item_1',
     );
 
@@ -45,6 +54,15 @@ void main() {
     expect(restored.folders.single.name, 'General');
     expect(restored.items.single.video?.positionSeconds, 42.5);
     expect(restored.items.single.lastOpenedAtMs, 20);
+    expect(restored.notes.single.body, 'Watch https://youtu.be/abc later');
     expect(restored.currentItemId, 'item_1');
+  });
+
+  test('linkify splits youtube links out of note text', () {
+    final segs = linkifyYoutube(
+      'see https://youtu.be/abc and youtube.com/watch?v=xyz done',
+    );
+    final links = segs.where((s) => s.isYoutube).map((s) => s.text).toList();
+    expect(links, ['https://youtu.be/abc', 'youtube.com/watch?v=xyz']);
   });
 }

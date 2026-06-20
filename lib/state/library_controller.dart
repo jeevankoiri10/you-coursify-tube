@@ -126,6 +126,33 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---- Notes -------------------------------------------------------------
+
+  /// Notes, most recently updated first.
+  List<Note> get notes => _library.notes.toList()
+    ..sort((a, b) => b.updatedAtMs.compareTo(a.updatedAtMs));
+
+  /// Builds a fresh note. It is only added to the library once [saveNote] is
+  /// called, so abandoning a blank note leaves nothing behind.
+  Note createNote() =>
+      Note(id: _id('note'), createdAtMs: _now(), updatedAtMs: _now());
+
+  Future<void> saveNote(Note note) async {
+    note.updatedAtMs = _now();
+    if (!_library.notes.any((n) => n.id == note.id)) {
+      _library.notes.add(note);
+    }
+    await persist();
+    notifyListeners();
+  }
+
+  /// Removes a note. Also drops empty notes (used when leaving a blank one).
+  Future<void> deleteNote(String noteId) async {
+    _library.notes.removeWhere((n) => n.id == noteId);
+    await persist();
+    notifyListeners();
+  }
+
   /// Called by the players to flush playback progress to disk. Does not notify
   /// listeners (no UI rebuild needed mid-playback).
   Future<void> persist() => Storage.save(_library);
