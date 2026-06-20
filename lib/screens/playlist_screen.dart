@@ -42,9 +42,11 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
     _player = YoutubePlayerController(
       params: const YoutubePlayerParams(
-        showFullscreenButton: true,
+        // Native controls off — we draw our own (center play/pause,
+        // bottom-right fullscreen) via PipPlayerScaffold.
+        showControls: false,
+        showFullscreenButton: false,
         strictRelatedVideos: true,
-        enableCaption: true,
       ),
     );
 
