@@ -229,16 +229,29 @@ class _NoteTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
       color: const Color(0xFF1C1C20),
       child: ListTile(
-        leading: const Icon(Icons.sticky_note_2_outlined, color: Colors.white70),
+        leading: SizedBox(
+          width: 84,
+          height: 50,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              color: const Color(0x332E7DFF),
+              child: const Icon(Icons.sticky_note_2,
+                  color: Color(0xFF82B1FF)),
+            ),
+          ),
+        ),
         title: Text(
           note.displayTitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: preview.isEmpty
-            ? null
-            : Padding(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (preview.isNotEmpty)
+              Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   preview,
@@ -247,6 +260,15 @@ class _NoteTile extends StatelessWidget {
                   style: const TextStyle(color: Colors.white54, fontSize: 13),
                 ),
               ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Added ${shortDate(note.createdAtMs)}',
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ),
+          ],
+        ),
         trailing: hasLink
             ? const Icon(Icons.smart_display_outlined, color: Color(0xFFFF4D4D))
             : const Icon(Icons.chevron_right),

@@ -21,6 +21,26 @@ class ItemTile extends StatelessWidget {
   /// When true, shows the added date under the item (used in folders).
   final bool showAddedDate;
 
+  /// Status line: for a video this is "In progress · 12:34" (status + total
+  /// duration); for a playlist it is the playlist summary.
+  String get _statusLine {
+    if (item.type == ItemType.video) {
+      final dur = item.video?.durationSeconds;
+      return dur != null
+          ? '${item.subtitle} · ${formatDuration(dur)}'
+          : item.subtitle;
+    }
+    return item.subtitle;
+  }
+
+  Widget _fallbackThumb() => Container(
+        color: Colors.white12,
+        child: Icon(
+          item.isPlaylist ? Icons.playlist_play : Icons.videocam,
+          color: Colors.white38,
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     return ListTile(
@@ -37,11 +57,12 @@ class ItemTile extends StatelessWidget {
                 Image.network(
                   item.thumbnailUrl!,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stack) =>
-                      Container(color: Colors.white12),
+                  errorBuilder: (context, error, stack) => _fallbackThumb(),
                 )
               else
-                Container(color: Colors.white12),
+                _fallbackThumb(),
+              // Type indicator: playlist badge on the right, video icon badge
+              // on the bottom-left.
               if (item.isPlaylist)
                 Positioned(
                   right: 0,
@@ -52,6 +73,20 @@ class ItemTile extends StatelessWidget {
                     color: Colors.black54,
                     child: const Icon(Icons.playlist_play,
                         size: 18, color: Colors.white),
+                  ),
+                )
+              else
+                Positioned(
+                  left: 3,
+                  bottom: 3,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.play_arrow,
+                        size: 13, color: Colors.white),
                   ),
                 ),
             ],
@@ -68,7 +103,7 @@ class ItemTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            item.subtitle,
+            _statusLine,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.white60, fontSize: 12),

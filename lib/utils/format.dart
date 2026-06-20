@@ -25,7 +25,7 @@ String dayLabel(int millis) {
   final diff = today.difference(that).inDays;
   if (diff == 0) return 'Today';
   if (diff == 1) return 'Yesterday';
-  if (diff > 1 && diff < 7) return '$diff days ago';
+  if (diff >= 2 && diff <= 7) return '$diff days ago';
   return '${_months[d.month - 1]} ${d.day}, ${d.year}';
 }
 
