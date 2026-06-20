@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../navigation.dart';
-import '../services/backup_service.dart';
 import '../state/library_controller.dart';
+import 'backup_screen.dart';
 import 'directory_tab.dart';
 import 'home_tab.dart';
 
@@ -32,54 +32,12 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _snack(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _export() async {
-    try {
-      await BackupService.export(widget.controller);
-    } catch (e) {
-      _snack('Export failed: $e');
-    }
-  }
-
-  Future<void> _import() async {
-    // Confirm the (destructive) replace before picking a file.
-    final confirmed = await _confirmImport();
-    if (!confirmed) return;
-    try {
-      final imported = await BackupService.pickAndImport(widget.controller);
-      _snack(imported ? 'Data imported.' : 'Import cancelled.');
-    } catch (e) {
-      _snack('Import failed: not a valid backup. ($e)');
-    }
-  }
-
-  Future<bool> _confirmImport() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Import data?'),
-        content: const Text(
-          'This replaces ALL current folders, links and notes with the '
-          'contents of the backup file you pick. Consider exporting first.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Choose file'),
-          ),
-        ],
+  void _openBackup() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BackupScreen(controller: widget.controller),
       ),
     );
-    return ok == true;
   }
 
   @override
@@ -97,26 +55,17 @@ class _HomeShellState extends State<HomeShell> {
             centerTitle: false,
             actions: [
               PopupMenuButton<String>(
-                icon: const Icon(Icons.import_export),
-                tooltip: 'Backup',
+                icon: const Icon(Icons.more_vert),
+                tooltip: 'More options',
                 onSelected: (value) {
-                  if (value == 'export') _export();
-                  if (value == 'import') _import();
+                  if (value == 'backup') _openBackup();
                 },
                 itemBuilder: (context) => const [
                   PopupMenuItem(
-                    value: 'export',
+                    value: 'backup',
                     child: ListTile(
-                      leading: Icon(Icons.upload_file),
-                      title: Text('Export all data'),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'import',
-                    child: ListTile(
-                      leading: Icon(Icons.download),
-                      title: Text('Import data'),
+                      leading: Icon(Icons.import_export),
+                      title: Text('Export / Import'),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
