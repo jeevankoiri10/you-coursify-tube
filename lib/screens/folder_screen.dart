@@ -9,7 +9,20 @@ import '../widgets/add_link_form.dart';
 import '../widgets/item_tile.dart';
 import 'note_editor_screen.dart';
 
-/// Shows the links and notes saved inside one folder, and lets you add more.
+/// One row in a folder: either a saved link or a note. They live in the same
+/// date-ordered list and look alike.
+class _Entry {
+  _Entry.item(this.item) : note = null;
+  _Entry.note(this.note) : item = null;
+
+  final LibraryItem? item;
+  final Note? note;
+
+  int get dateMs => item?.addedAtMs ?? note!.createdAtMs;
+}
+
+/// Shows everything saved inside one folder — links and notes together, grouped
+/// by the date they were added — and lets you add more.
 class FolderScreen extends StatefulWidget {
   const FolderScreen({
     super.key,
@@ -55,11 +68,23 @@ class _FolderScreenState extends State<FolderScreen> {
   }
 
   Future<void> _confirmDeleteItem(LibraryItem item) async {
+    if (await _confirm('Remove this link?', item.title)) {
+      await _c.deleteItem(item.id);
+    }
+  }
+
+  Future<void> _confirmDeleteNote(Note note) async {
+    if (await _confirm('Delete this note?', note.displayTitle)) {
+      await _c.deleteNote(note.id);
+    }
+  }
+
+  Future<bool> _confirm(String title, String detail) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove this link?'),
-        content: Text(item.title),
+        title: Text(title),
+        content: Text(detail),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -67,15 +92,31 @@ class _FolderScreenState extends State<FolderScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
+            child: const Text('Delete'),
           ),
         ],
       ),
     );
-    if (ok == true) {
-      await _c.deleteItem(item.id);
-      setState(() {});
+    return ok == true;
+  }
+
+  /// Combined, date-sorted list of links and notes.
+  List<MapEntry<String, List<_Entry>>> _grouped() {
+    final entries = <_Entry>[
+      for (final item in _c.itemsInFolder(widget.folderId)) _Entry.item(item),
+      for (final note in _c.notesInFolder(widget.folderId)) _Entry.note(note),
+    ]..sort((a, b) => b.dateMs.compareTo(a.dateMs));
+
+    final groups = <String, List<_Entry>>{};
+    final order = <String>[];
+    for (final e in entries) {
+      final label = dayLabel(e.dateMs);
+      groups.putIfAbsent(label, () {
+        order.add(label);
+        return [];
+      }).add(e);
     }
+    return [for (final label in order) MapEntry(label, groups[label]!)];
   }
 
   @override
@@ -83,8 +124,9 @@ class _FolderScreenState extends State<FolderScreen> {
     return ListenableBuilder(
       listenable: _c,
       builder: (context, _) {
-        final items = _c.itemsInFolder(widget.folderId);
-        final notes = _c.notesInFolder(widget.folderId);
+        final groups = _grouped();
+        final total = _c.itemCountInFolder(widget.folderId) +
+            _c.noteCountInFolder(widget.folderId);
         return Scaffold(
           appBar: AppBar(
             title: Text(_folder.name),
@@ -111,50 +153,51 @@ class _FolderScreenState extends State<FolderScreen> {
                 autoOpen: false,
               ),
               const SizedBox(height: 16),
-              _SectionTitle('Saved links · ${items.length}'),
-              if (items.isEmpty)
-                const _EmptyHint('No links in this folder yet.')
-              else
-                // Grouped by the date each link was added (newest first).
-                for (final group in _groupByDay(items)) ...[
-                  _DateHeader(group.key),
-                  for (final item in group.value)
-                    ItemTile(
-                      item: item,
-                      showAddedDate: true,
-                      onTap: () => openItem(context, _c, item),
-                      onDelete: () => _confirmDeleteItem(item),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 4),
+                child: Text(
+                  'In this folder · $total',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ),
+              if (groups.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 28),
+                  child: Center(
+                    child: Text(
+                      'Nothing here yet.\nPaste a link above, or tap '
+                      '"Add new note".',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white38),
                     ),
-                ],
-              const SizedBox(height: 20),
-              _SectionTitle('Notes · ${notes.length}'),
-              if (notes.isEmpty)
-                const _EmptyHint(
-                    'No notes yet. Tap "Add new note" to write one.')
+                  ),
+                )
               else
-                for (final note in notes) _NoteTile(note: note, onTap: () => _openNote(note)),
+                for (final group in groups) ...[
+                  _DateHeader(group.key),
+                  for (final e in group.value)
+                    if (e.item != null)
+                      ItemTile(
+                        item: e.item!,
+                        controller: _c,
+                        showAddedDate: true,
+                        onTap: () => openItem(context, _c, e.item!),
+                        onDelete: () => _confirmDeleteItem(e.item!),
+                      )
+                    else
+                      _NoteTile(
+                        note: e.note!,
+                        onTap: () => _openNote(e.note!),
+                        onDelete: () => _confirmDeleteNote(e.note!),
+                      ),
+                ],
             ],
           ),
         );
       },
     );
   }
-}
-
-/// Groups items (already sorted newest-first) under date labels, preserving
-/// order so "Today", "Yesterday", then older dates appear top to bottom.
-List<MapEntry<String, List<LibraryItem>>> _groupByDay(List<LibraryItem> items) {
-  final groups = <String, List<LibraryItem>>{};
-  final order = <String>[];
-  for (final item in items) {
-    final label = dayLabel(item.addedAtMs);
-    final list = groups.putIfAbsent(label, () {
-      order.add(label);
-      return [];
-    });
-    list.add(item);
-  }
-  return [for (final label in order) MapEntry(label, groups[label]!)];
 }
 
 class _DateHeader extends StatelessWidget {
@@ -164,7 +207,7 @@ class _DateHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 10, 4, 2),
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 2),
       child: Row(
         children: [
           const Icon(Icons.event, size: 14, color: Color(0xFFFF4D4D)),
@@ -183,97 +226,84 @@ class _DateHeader extends StatelessWidget {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 4),
-      child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-      ),
-    );
-  }
-}
-
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Center(
-        child: Text(text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white38)),
-      ),
-    );
-  }
-}
-
+/// A note row styled to match [ItemTile]: thumbnail + title + subtitle + an
+/// option (delete) button.
 class _NoteTile extends StatelessWidget {
-  const _NoteTile({required this.note, required this.onTap});
+  const _NoteTile({
+    required this.note,
+    required this.onTap,
+    required this.onDelete,
+  });
+
   final Note note;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final preview = note.body.trim();
     final hasLink = hasYoutubeLink(note.body);
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-      color: const Color(0xFF1C1C20),
-      child: ListTile(
-        leading: SizedBox(
-          width: 84,
-          height: 50,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              color: const Color(0x332E7DFF),
-              child: const Icon(Icons.sticky_note_2,
-                  color: Color(0xFF82B1FF)),
-            ),
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      leading: SizedBox(
+        width: 84,
+        height: 50,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                color: const Color(0x332E7DFF),
+                child: const Icon(Icons.sticky_note_2, color: Color(0xFF82B1FF)),
+              ),
+              if (hasLink)
+                Positioned(
+                  left: 3,
+                  bottom: 3,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(Icons.play_arrow,
+                        size: 13, color: Color(0xFFFF6E6E)),
+                  ),
+                ),
+            ],
           ),
         ),
-        title: Text(
-          note.displayTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (preview.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  preview,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Added ${shortDate(note.createdAtMs)}',
-                style: const TextStyle(color: Colors.white38, fontSize: 11),
-              ),
-            ),
-          ],
-        ),
-        trailing: hasLink
-            ? const Icon(Icons.smart_display_outlined, color: Color(0xFFFF4D4D))
-            : const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
+      title: Text(
+        note.displayTitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            preview.isEmpty
+                ? (hasLink ? 'Note · has video link' : 'Note')
+                : preview,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          Text(
+            'Added ${shortDate(note.createdAtMs)}',
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+        ],
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.more_vert),
+        tooltip: 'Remove',
+        onPressed: onDelete,
+      ),
+      onTap: onTap,
     );
   }
 }

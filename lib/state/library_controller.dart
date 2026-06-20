@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/library.dart';
+import '../models/media.dart';
 import '../services/storage.dart';
+import '../utils/format.dart';
 
 /// Single source of truth for the app. Holds the [Library] in memory, exposes
 /// derived views (history, folder contents, current item) and persists every
@@ -9,6 +11,7 @@ import '../services/storage.dart';
 class LibraryController extends ChangeNotifier {
   LibraryController(this._library) {
     _ensureDefaultFolder();
+    _migrateProgress();
   }
 
   final Library _library;
@@ -30,6 +33,72 @@ class LibraryController extends ChangeNotifier {
 
   int _now() => DateTime.now().millisecondsSinceEpoch;
   String _id(String prefix) => '${prefix}_${_now()}_${_library.items.length}';
+
+  /// Seed the centralized progress map from any per-item positions saved by
+  /// older versions, so existing resume points aren't lost.
+  void _migrateProgress() {
+    void seed(VideoItem v) {
+      if (_library.progress.containsKey(v.videoId)) return;
+      if (v.positionSeconds > 0 || v.completed) {
+        _library.progress[v.videoId] = VideoProgress(
+          positionSeconds: v.positionSeconds,
+          durationSeconds: v.durationSeconds,
+          completed: v.completed,
+          updatedAtMs: _now(),
+        );
+      }
+    }
+
+    for (final item in _library.items) {
+      if (item.video != null) seed(item.video!);
+      for (final v in item.playlist?.videos ?? const <VideoItem>[]) {
+        seed(v);
+      }
+    }
+  }
+
+  // ---- Centralized progress (keyed by video id, shared app-wide) ---------
+
+  VideoProgress progressFor(String videoId) =>
+      _library.progress[videoId] ?? VideoProgress();
+
+  /// Resume position for a video id, in seconds.
+  double startFor(String videoId) => progressFor(videoId).positionSeconds;
+
+  /// Persist playback progress for a video id. Shared by every screen, so the
+  /// same URL resumes identically wherever it appears. Does not notify (called
+  /// repeatedly during playback); callers refresh the UI via [touch] on return.
+  Future<void> saveProgress(
+    String videoId, {
+    required double position,
+    int? duration,
+    bool? completed,
+  }) async {
+    final p = _library.progress.putIfAbsent(videoId, VideoProgress.new);
+    p.positionSeconds = position;
+    if (duration != null && duration > 0) p.durationSeconds = duration;
+    if (completed != null) p.completed = completed;
+    p.updatedAtMs = _now();
+    await persist();
+  }
+
+  /// Status line for a video tile, e.g. "In progress · 12:34".
+  String videoStatus(VideoItem v) {
+    final p = progressFor(v.videoId);
+    final base = p.completed
+        ? 'Watched'
+        : (p.positionSeconds > 1 ? 'In progress' : 'Not started');
+    final dur = v.durationSeconds ?? p.durationSeconds;
+    return dur != null ? '$base · ${formatDuration(dur)}' : base;
+  }
+
+  /// Watched fraction (0..1) for a progress bar.
+  double videoFraction(VideoItem v) {
+    final p = progressFor(v.videoId);
+    final dur = v.durationSeconds ?? p.durationSeconds;
+    if (dur == null || dur <= 0) return 0;
+    return (p.positionSeconds / dur).clamp(0.0, 1.0);
+  }
 
   // ---- Reads -------------------------------------------------------------
 

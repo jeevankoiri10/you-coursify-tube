@@ -144,18 +144,23 @@ class Library {
     required this.folders,
     required this.items,
     required this.notes,
+    required this.progress,
     this.currentItemId,
   });
 
   final List<Folder> folders;
   final List<LibraryItem> items;
   final List<Note> notes;
+
+  /// Centralized resume position per video id, shared app-wide.
+  final Map<String, VideoProgress> progress;
   String? currentItemId;
 
   Map<String, dynamic> toJson() => {
         'folders': folders.map((f) => f.toJson()).toList(),
         'items': items.map((i) => i.toJson()).toList(),
         'notes': notes.map((n) => n.toJson()).toList(),
+        'progress': progress.map((k, v) => MapEntry(k, v.toJson())),
         'currentItemId': currentItemId,
       };
 
@@ -169,8 +174,15 @@ class Library {
         notes: ((json['notes'] as List?) ?? const [])
             .map((e) => Note.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
+        progress: ((json['progress'] as Map?) ?? const {}).map(
+          (k, v) => MapEntry(
+            k as String,
+            VideoProgress.fromJson(Map<String, dynamic>.from(v as Map)),
+          ),
+        ),
         currentItemId: json['currentItemId'] as String?,
       );
 
-  factory Library.empty() => Library(folders: [], items: [], notes: []);
+  factory Library.empty() =>
+      Library(folders: [], items: [], notes: [], progress: {});
 }

@@ -33,7 +33,9 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
   @override
   void initState() {
     super.initState();
-    _lastPosition = _video.positionSeconds;
+    // Resume from the centralized progress for this video id (shared with any
+    // other place the same URL appears).
+    _lastPosition = widget.controller.startFor(_video.videoId);
     WidgetsBinding.instance.addObserver(this);
 
     _player = YoutubePlayerController(
@@ -46,13 +48,19 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
 
     _player.loadVideoById(
       videoId: _video.videoId,
-      startSeconds: _video.positionSeconds,
+      startSeconds: _lastPosition,
     );
 
     _player.stream.listen((value) {
       if (!mounted) return;
       if (value.playerState == PlayerState.ended) {
         _lastPosition = 0;
+        widget.controller.saveProgress(
+          _video.videoId,
+          position: 0,
+          duration: _video.durationSeconds,
+          completed: true,
+        );
         _player.seekTo(seconds: 0, allowSeekAhead: true);
         _player.playVideo();
       }
@@ -72,8 +80,11 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
   }
 
   Future<void> _persist() async {
-    _video.positionSeconds = _lastPosition;
-    await widget.controller.persist();
+    await widget.controller.saveProgress(
+      _video.videoId,
+      position: _lastPosition,
+      duration: _video.durationSeconds,
+    );
   }
 
   @override

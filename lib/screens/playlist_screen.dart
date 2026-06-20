@@ -36,7 +36,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   @override
   void initState() {
     super.initState();
-    _lastPosition = _current.positionSeconds;
+    _lastPosition = widget.controller.startFor(_current.videoId);
     WidgetsBinding.instance.addObserver(this);
 
     _player = YoutubePlayerController(
@@ -49,14 +49,18 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
     _player.loadVideoById(
       videoId: _current.videoId,
-      startSeconds: _current.positionSeconds,
+      startSeconds: _lastPosition,
     );
 
     _player.stream.listen((value) {
       if (!mounted) return;
       if (value.playerState == PlayerState.ended) {
-        _current.completed = true;
-        _current.positionSeconds = 0;
+        widget.controller.saveProgress(
+          _current.videoId,
+          position: 0,
+          duration: _current.durationSeconds,
+          completed: true,
+        );
         _playNext();
       }
       final title = value.metaData.title;
@@ -75,21 +79,26 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   }
 
   Future<void> _persist() async {
-    _current.positionSeconds = _lastPosition;
-    await widget.controller.persist();
+    await widget.controller.saveProgress(
+      _current.videoId,
+      position: _lastPosition,
+      duration: _current.durationSeconds,
+    );
   }
 
   Future<void> _playAt(int index) async {
     if (index < 0 || index >= _playlist.videos.length) return;
-    _current.positionSeconds = _lastPosition;
+    // Save where we are on the current video before switching.
+    await _persist();
     setState(() => _playlist.currentIndex = index);
     widget.controller.touch();
-    _lastPosition = _current.positionSeconds;
+    _lastPosition = widget.controller.startFor(_current.videoId);
     await _player.loadVideoById(
       videoId: _current.videoId,
-      startSeconds: _current.positionSeconds,
+      startSeconds: _lastPosition,
     );
-    await _persist();
+    // Remember which video this playlist is on.
+    await widget.controller.persist();
   }
 
   void _playNext() {
@@ -147,6 +156,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                 return _PlaylistTile(
                   index: index,
                   video: v,
+                  progress: widget.controller.progressFor(v.videoId),
                   isCurrent: index == _playlist.currentIndex,
                   onTap: () => _playAt(index),
                 );
@@ -163,23 +173,25 @@ class _PlaylistTile extends StatelessWidget {
   const _PlaylistTile({
     required this.index,
     required this.video,
+    required this.progress,
     required this.isCurrent,
     required this.onTap,
   });
 
   final int index;
   final VideoItem video;
+  final VideoProgress progress;
   final bool isCurrent;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final watched = video.positionSeconds;
-    final total = video.durationSeconds;
-    final progress =
+    final watched = progress.positionSeconds;
+    final total = video.durationSeconds ?? progress.durationSeconds;
+    final fraction =
         (total != null && total > 0) ? (watched / total).clamp(0.0, 1.0) : 0.0;
 
-    final subtitle = video.completed
+    final subtitle = progress.completed
         ? 'Watched'
         : watched > 1
             ? 'Left off at ${formatDuration(watched)}'
@@ -217,11 +229,11 @@ class _PlaylistTile extends StatelessWidget {
                           child: const Icon(Icons.equalizer,
                               color: Color(0xFFFF4D4D)),
                         ),
-                      if (progress > 0)
+                      if (fraction > 0)
                         Align(
                           alignment: Alignment.bottomCenter,
                           child: LinearProgressIndicator(
-                            value: progress,
+                            value: fraction,
                             minHeight: 3,
                             backgroundColor: Colors.white24,
                             valueColor:
@@ -250,7 +262,7 @@ class _PlaylistTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        if (video.completed)
+                        if (progress.completed)
                           const Padding(
                             padding: EdgeInsets.only(right: 4),
                             child: Icon(Icons.check_circle,

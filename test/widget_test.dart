@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:coursify_yt/models/library.dart';
 import 'package:coursify_yt/models/media.dart';
 import 'package:coursify_yt/services/youtube_service.dart';
+import 'package:coursify_yt/state/library_controller.dart';
 import 'package:coursify_yt/utils/youtube_links.dart';
 
 void main() {
@@ -47,6 +49,10 @@ void main() {
           updatedAtMs: 5,
         ),
       ],
+      progress: {
+        'abc': VideoProgress(
+            positionSeconds: 30, durationSeconds: 100, completed: false),
+      },
       currentItemId: 'item_1',
     );
 
@@ -55,7 +61,22 @@ void main() {
     expect(restored.items.single.video?.positionSeconds, 42.5);
     expect(restored.items.single.lastOpenedAtMs, 20);
     expect(restored.notes.single.body, 'Watch https://youtu.be/abc later');
+    expect(restored.progress['abc']?.positionSeconds, 30);
     expect(restored.currentItemId, 'item_1');
+  });
+
+  test('progress is centralized per video id and shared across the app',
+      () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
+    final controller = LibraryController(Library.empty());
+    // Save progress for a url's video id once...
+    await controller.saveProgress('vid123', position: 55, duration: 200);
+    // ...and every lookup of that id sees it, no matter where it came from.
+    expect(controller.startFor('vid123'), 55);
+    expect(controller.progressFor('vid123').durationSeconds, 200);
+    // A different id is independent.
+    expect(controller.startFor('other'), 0);
   });
 
   test('linkify splits youtube links out of note text', () {

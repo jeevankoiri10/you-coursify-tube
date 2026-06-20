@@ -27,6 +27,9 @@ class HomeTab extends StatelessWidget {
           const _SectionHeader('Continue watching'),
           _ContinueCard(
             item: current,
+            statusText: current.type == ItemType.video && current.video != null
+                ? controller.videoStatus(current.video!)
+                : current.subtitle,
             onTap: () => openItem(context, controller, current),
           ),
           const SizedBox(height: 20),
@@ -57,6 +60,7 @@ class HomeTab extends StatelessWidget {
           for (final item in history)
             ItemTile(
               item: item,
+              controller: controller,
               onTap: () => openItem(context, controller, item),
             ),
       ],
@@ -84,8 +88,13 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _ContinueCard extends StatelessWidget {
-  const _ContinueCard({required this.item, required this.onTap});
+  const _ContinueCard({
+    required this.item,
+    required this.statusText,
+    required this.onTap,
+  });
   final LibraryItem item;
+  final String statusText;
   final VoidCallback onTap;
 
   @override
@@ -136,7 +145,7 @@ class _ContinueCard extends StatelessWidget {
                         fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                   const SizedBox(height: 4),
-                  Text(item.subtitle,
+                  Text(statusText,
                       style: const TextStyle(color: Colors.white60, fontSize: 12)),
                 ],
               ),

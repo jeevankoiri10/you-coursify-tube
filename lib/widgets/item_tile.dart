@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/library.dart';
+import '../state/library_controller.dart';
 import '../utils/format.dart';
 
 /// A row representing one saved link (video or playlist) for History and folder
@@ -9,26 +10,25 @@ class ItemTile extends StatelessWidget {
   const ItemTile({
     super.key,
     required this.item,
+    required this.controller,
     required this.onTap,
     this.onDelete,
     this.showAddedDate = false,
   });
 
   final LibraryItem item;
+  final LibraryController controller;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
 
   /// When true, shows the added date under the item (used in folders).
   final bool showAddedDate;
 
-  /// Status line: for a video this is "In progress · 12:34" (status + total
-  /// duration); for a playlist it is the playlist summary.
+  /// Status line: for a video this is "In progress · 12:34" (centralized
+  /// status + total duration); for a playlist it is the playlist summary.
   String get _statusLine {
-    if (item.type == ItemType.video) {
-      final dur = item.video?.durationSeconds;
-      return dur != null
-          ? '${item.subtitle} · ${formatDuration(dur)}'
-          : item.subtitle;
+    if (item.type == ItemType.video && item.video != null) {
+      return controller.videoStatus(item.video!);
     }
     return item.subtitle;
   }

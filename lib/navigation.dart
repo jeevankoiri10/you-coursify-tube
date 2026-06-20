@@ -81,6 +81,7 @@ Future<void> openYoutubeUrl(
             : SinglePlayerScreen(item: item, controller: controller),
       ),
     );
+    controller.touch(); // refresh any tiles showing this URL's progress
   } catch (e) {
     if (!context.mounted) return;
     Navigator.of(context).pop(); // dismiss the loading spinner
