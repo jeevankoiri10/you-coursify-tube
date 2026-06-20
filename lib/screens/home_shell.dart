@@ -42,7 +42,7 @@ class _HomeShellState extends State<HomeShell> {
         ];
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Coursify YouTube'),
+            title: const Text('You Coursify Tube'),
             centerTitle: false,
           ),
           body: IndexedStack(index: _index, children: tabs),

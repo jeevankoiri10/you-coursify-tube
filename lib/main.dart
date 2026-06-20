@@ -20,7 +20,7 @@ class CoursifyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Coursify YouTube',
+      title: 'You Coursify Tube',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
