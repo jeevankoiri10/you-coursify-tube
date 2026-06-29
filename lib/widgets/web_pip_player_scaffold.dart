@@ -89,6 +89,8 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
   bool _autoPipAvailable = false;
   bool _fullscreen = false;
   bool? _lastPlaying;
+  Timer? _pipKeepAlive;
+  bool _pipShouldPlay = false;
 
   // Hides YouTube's chrome, locks scrolling to the player, autoplays, and
   // reports progress/end back over the FlutterPlayer channel.
@@ -107,6 +109,32 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
     (document.head||document.documentElement).appendChild(css);
   }
   function snap(){ try{ window.scrollTo(0,0); }catch(_){} }
+  // Make the page always look "visible" so YouTube's player doesn't auto-pause
+  // when minimized to Picture-in-Picture (it pauses on the visibilitychange /
+  // blur the system fires when backgrounding).
+  function keepVisible(){
+    if(window.__fvis) return; window.__fvis=true;
+    try{
+      Object.defineProperty(document,'hidden',{configurable:true,get:function(){return false;}});
+      Object.defineProperty(document,'visibilityState',{configurable:true,get:function(){return 'visible';}});
+      Object.defineProperty(document,'webkitHidden',{configurable:true,get:function(){return false;}});
+      Object.defineProperty(document,'webkitVisibilityState',{configurable:true,get:function(){return 'visible';}});
+    }catch(_){}
+    ['visibilitychange','webkitvisibilitychange','pagehide','blur'].forEach(function(ev){
+      try{ document.addEventListener(ev,function(e){ e.stopImmediatePropagation(); },true); }catch(_){}
+      try{ window.addEventListener(ev,function(e){ e.stopImmediatePropagation(); },true); }catch(_){}
+    });
+  }
+  // While keeping alive in PiP, make pause() a no-op so neither YouTube nor the
+  // system can pause the video — it just keeps running like it's fullscreen.
+  // (Cleared for the PiP pause button via window.__fkeep.)
+  function blockPause(){
+    if(window.__fpatch) return; window.__fpatch=true;
+    try{
+      var proto=HTMLMediaElement.prototype, orig=proto.pause;
+      proto.pause=function(){ if(window.__fkeep) return; return orig.apply(this,arguments); };
+    }catch(_){}
+  }
   // Remember the video this page started on; if YouTube swaps it in place
   // (autoplay-next without a full navigation), force it back.
   var expected=(new URLSearchParams(location.search)).get('v');
@@ -148,7 +176,8 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
       [0,400,1000,2000,3500].forEach(function(d){ setTimeout(unmute,d); });
     }
   }
-  injectCss(); snap(); hook();
+  if(typeof window.__fkeep==='undefined') window.__fkeep=false;
+  keepVisible(); blockPause(); injectCss(); snap(); hook();
   window.addEventListener('scroll', snap, true);
   if(!window.__ft){
     window.__ft=setInterval(function(){
@@ -203,6 +232,8 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
           onPageFinished: (_) {
             if (mounted) setState(() => _loading = false);
             _web.runJavaScript(_isolateAndTrack);
+            // Re-apply the keep-playing flag (a fresh page resets it).
+            _setKeepPlaying(_isPip && _pipShouldPlay);
           },
         ),
       );
@@ -289,8 +320,14 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
 
   void _setupPip() {
     _pip = SimplePip(
-      onPipEntered: () => setState(() => _isPip = true),
-      onPipExited: () => setState(() => _isPip = false),
+      onPipEntered: () {
+        setState(() => _isPip = true);
+        _startPipKeepAlive();
+      },
+      onPipExited: () {
+        setState(() => _isPip = false);
+        _stopPipKeepAlive();
+      },
       onPipAction: _onPipAction,
     );
     _pip.setPipActionsLayout(
@@ -322,19 +359,51 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
     } catch (_) {}
   }
 
+  /// Android pauses the WebView's <video> when the app backgrounds into PiP —
+  /// once on entry and again periodically. Re-assert play every couple seconds
+  /// while in PiP so it keeps running, but only when it's meant to be playing
+  /// (so the PiP pause button still works).
+  void _startPipKeepAlive() {
+    _pipShouldPlay = true;
+    _setKeepPlaying(true); // in-page pause listener resumes instantly
+    widget.handle.play();
+    // Light backup in case a pause event is ever missed (no-op while playing).
+    _pipKeepAlive?.cancel();
+    _pipKeepAlive = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (_isPip && _pipShouldPlay) widget.handle.play();
+    });
+  }
+
+  void _stopPipKeepAlive() {
+    _pipKeepAlive?.cancel();
+    _pipKeepAlive = null;
+    _setKeepPlaying(false);
+  }
+
+  /// Toggles the in-page flag that auto-resumes the video the instant it is
+  /// paused (used to keep PiP playback continuous).
+  void _setKeepPlaying(bool keep) {
+    _web.runJavaScript('window.__fkeep=$keep;');
+  }
+
   // --- Landscape fullscreen ------------------------------------------------
 
   Future<void> _toggleFullscreen() async {
     final entering = !_fullscreen;
     setState(() => _fullscreen = entering);
     if (entering) {
-      // Rotate to landscape and hide the status/navigation bars (no battery
-      // or notification icons) for a clean, immersive full-screen video.
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      // Keep BOTH system bars visible (not immersive): the status bar shows
+      // time/battery, and keeping the bottom bar lifts YouTube's seek bar up
+      // off the screen edge so it's visible and reachable. Non-immersive also
+      // means taps reach the player's controls instead of toggling the bars.
+      await SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values,
+      );
     } else {
       await _exitFullscreenSystemUi();
     }
@@ -342,14 +411,21 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
 
   Future<void> _exitFullscreenSystemUi() async {
     await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
   }
 
   void _onPipAction(PipAction action) {
     switch (action) {
       case PipAction.play:
+        _pipShouldPlay = true;
+        _setKeepPlaying(true);
         widget.handle.play();
       case PipAction.pause:
+        _pipShouldPlay = false;
+        _setKeepPlaying(false); // let the PiP pause button actually pause
         widget.handle.pause();
       case PipAction.next:
         widget.onNext?.call();
@@ -362,6 +438,7 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
 
   @override
   void dispose() {
+    _stopPipKeepAlive();
     // Don't leave auto-PiP armed once the player is gone.
     _setAutoPip(false);
     // Never leave the device locked to landscape / immersive after leaving.
@@ -453,22 +530,29 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
                     fit: StackFit.expand,
                     children: [
                       WebViewWidget(controller: _web),
-                      if (_loading)
+                      if (_loading && !_isPip)
                         const ColoredBox(
                           color: Colors.black,
                           child: Center(child: CircularProgressIndicator()),
                         ),
                       if (_fullscreen)
+                        // Small, top-left, semi-transparent so it stays clear
+                        // of YouTube's own controls (seek bar, cast, menu).
                         Positioned(
-                          top: 12,
-                          right: 12,
+                          top: 6,
+                          left: 6,
                           child: Material(
-                            color: Colors.black45,
+                            color: Colors.black38,
                             shape: const CircleBorder(),
                             child: IconButton(
+                              iconSize: 18,
+                              visualDensity: VisualDensity.compact,
+                              constraints: const BoxConstraints(
+                                  minWidth: 32, minHeight: 32),
+                              padding: const EdgeInsets.all(4),
                               tooltip: 'Exit fullscreen',
                               icon: const Icon(Icons.fullscreen_exit,
-                                  color: Colors.white),
+                                  color: Colors.white70),
                               onPressed: _toggleFullscreen,
                             ),
                           ),
