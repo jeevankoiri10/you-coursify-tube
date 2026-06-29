@@ -12,7 +12,28 @@ Future<void> main() async {
   // Load the saved library (folders, links, positions, history) so the app
   // reopens straight into the content and resumes automatically.
   final library = await Storage.load();
-  runApp(CoursifyApp(controller: LibraryController(library)));
+  final controller = LibraryController(library);
+
+  // Fresh install / cleared data: if there's nothing saved yet but an on-device
+  // backup snapshot exists, restore it automatically so the app fills back in.
+  if (library.items.isEmpty && library.notes.isEmpty) {
+    await _restoreFromBackup(controller);
+  }
+
+  runApp(CoursifyApp(controller: controller));
+}
+
+/// Loads the newest automatic backup snapshot into [controller], if one exists.
+Future<void> _restoreFromBackup(LibraryController controller) async {
+  try {
+    final file = await AutoBackupService.latest();
+    if (file == null) return;
+    final json = await file.readAsString();
+    if (json.trim().isEmpty) return;
+    await controller.importJson(json); // replaces data and persists it
+  } catch (_) {
+    // Corrupt or unreadable snapshot — start clean rather than crash.
+  }
 }
 
 class CoursifyApp extends StatefulWidget {
