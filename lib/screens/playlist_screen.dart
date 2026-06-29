@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../models/library.dart';
 import '../models/media.dart';
 import '../state/library_controller.dart';
+import '../utils/clipboard.dart';
 import '../utils/format.dart';
-import '../widgets/pip_player_scaffold.dart';
+import '../widgets/web_pip_player_scaffold.dart';
+import 'youtube_signin_screen.dart';
 
 /// Plays a saved playlist. The current video sits at the top; below it is the
 /// full list with a marker on "where you left off" and per-video progress.
@@ -27,7 +28,7 @@ class PlaylistScreen extends StatefulWidget {
 
 class _PlaylistScreenState extends State<PlaylistScreen>
     with WidgetsBindingObserver {
-  late final YoutubePlayerController _player;
+  final WebPlayerHandle _handle = WebPlayerHandle();
   PlaylistData get _playlist => widget.item.playlist!;
   double _lastPosition = 0;
   Timer? _saveTimer;
@@ -39,44 +40,21 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     super.initState();
     _lastPosition = widget.controller.startFor(_current.videoId);
     WidgetsBinding.instance.addObserver(this);
-
-    _player = YoutubePlayerController(
-      params: const YoutubePlayerParams(
-        showFullscreenButton: true,
-        strictRelatedVideos: true,
-        enableCaption: true,
-      ),
-    );
-
-    _player.loadVideoById(
-      videoId: _current.videoId,
-      startSeconds: _lastPosition,
-    );
-
-    _player.stream.listen((value) {
-      if (!mounted) return;
-      if (value.playerState == PlayerState.ended) {
-        widget.controller.saveProgress(
-          _current.videoId,
-          position: 0,
-          duration: _current.durationSeconds,
-          completed: true,
-        );
-        _playNext();
-      }
-      final title = value.metaData.title;
-      if (title.isNotEmpty && title != _current.title) {
-        _current.title = title;
-        widget.controller.touch();
-        setState(() {});
-      }
-    });
-
-    _player.videoStateStream.listen((state) {
-      _lastPosition = state.position.inMilliseconds / 1000.0;
-    });
-
     _saveTimer = Timer.periodic(const Duration(seconds: 5), (_) => _persist());
+  }
+
+  void _onProgress(double position, int? duration) {
+    _lastPosition = position;
+  }
+
+  Future<void> _onEnded() async {
+    await widget.controller.saveProgress(
+      _current.videoId,
+      position: 0,
+      duration: _current.durationSeconds,
+      completed: true,
+    );
+    _playNext();
   }
 
   Future<void> _persist() async {
@@ -93,11 +71,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     await _persist();
     setState(() => _playlist.currentIndex = index);
     widget.controller.touch();
+    // The new video id flows into WebPipPlayerScaffold, which loads it
+    // resuming at this position.
     _lastPosition = widget.controller.startFor(_current.videoId);
-    await _player.loadVideoById(
-      videoId: _current.videoId,
-      startSeconds: _lastPosition,
-    );
     // Remember which video this playlist is on.
     await widget.controller.persist();
   }
@@ -105,6 +81,13 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   void _playNext() {
     final next = _playlist.currentIndex + 1;
     _playAt(next >= _playlist.videos.length ? 0 : next);
+  }
+
+  Future<void> _openSignIn() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const YoutubeSignInScreen()),
+    );
+    _handle.reload(); // retry playback with the signed-in session
   }
 
   @override
@@ -122,7 +105,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     _saveTimer?.cancel();
     _persist();
     WidgetsBinding.instance.removeObserver(this);
-    _player.close();
     super.dispose();
   }
 
@@ -133,9 +115,14 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
   @override
   Widget build(BuildContext context) {
-    return PipPlayerScaffold(
-      controller: _player,
+    return WebPipPlayerScaffold(
+      videoId: _current.videoId,
+      startSeconds: _lastPosition,
       title: _playlist.title,
+      handle: _handle,
+      onProgress: _onProgress,
+      onEnded: _onEnded,
+      onSignIn: _openSignIn,
       onNext: _playNext,
       onPrevious: _playPrevious,
       below: Column(
@@ -286,6 +273,12 @@ class _PlaylistTile extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.link, size: 20),
+                tooltip: 'Copy link',
+                color: Colors.white54,
+                onPressed: () => copyLink(context, video.url),
               ),
             ],
           ),

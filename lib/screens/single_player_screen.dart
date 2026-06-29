@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../models/library.dart';
 import '../models/media.dart';
 import '../state/library_controller.dart';
-import '../widgets/pip_player_scaffold.dart';
+import '../widgets/web_pip_player_scaffold.dart';
+import 'youtube_signin_screen.dart';
 
 /// Plays one saved video, forever. Starts where you left off, loops back to the
 /// start when it ends, and continuously saves your position.
@@ -26,8 +26,9 @@ class SinglePlayerScreen extends StatefulWidget {
 
 class _SinglePlayerScreenState extends State<SinglePlayerScreen>
     with WidgetsBindingObserver {
-  late final YoutubePlayerController _player;
+  final WebPlayerHandle _handle = WebPlayerHandle();
   VideoItem get _video => widget.item.video!;
+  late final double _initialStart;
   double _lastPosition = 0;
   Timer? _saveTimer;
 
@@ -36,48 +37,25 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
     super.initState();
     // Resume from the centralized progress for this video id (shared with any
     // other place the same URL appears).
-    _lastPosition = widget.controller.startFor(_video.videoId);
+    _initialStart = widget.controller.startFor(_video.videoId);
+    _lastPosition = _initialStart;
     WidgetsBinding.instance.addObserver(this);
-
-    _player = YoutubePlayerController(
-      params: const YoutubePlayerParams(
-        showFullscreenButton: true,
-        strictRelatedVideos: true,
-        enableCaption: true,
-      ),
-    );
-
-    _player.loadVideoById(
-      videoId: _video.videoId,
-      startSeconds: _lastPosition,
-    );
-
-    _player.stream.listen((value) {
-      if (!mounted) return;
-      if (value.playerState == PlayerState.ended) {
-        _lastPosition = 0;
-        widget.controller.saveProgress(
-          _video.videoId,
-          position: 0,
-          duration: _video.durationSeconds,
-          completed: true,
-        );
-        _player.seekTo(seconds: 0, allowSeekAhead: true);
-        _player.playVideo();
-      }
-      final title = value.metaData.title;
-      if (title.isNotEmpty && title != _video.title) {
-        _video.title = title;
-        widget.controller.touch();
-        setState(() {});
-      }
-    });
-
-    _player.videoStateStream.listen((state) {
-      _lastPosition = state.position.inMilliseconds / 1000.0;
-    });
-
     _saveTimer = Timer.periodic(const Duration(seconds: 5), (_) => _persist());
+  }
+
+  void _onProgress(double position, int? duration) {
+    _lastPosition = position;
+  }
+
+  Future<void> _onEnded() async {
+    _lastPosition = 0;
+    await widget.controller.saveProgress(
+      _video.videoId,
+      position: 0,
+      duration: _video.durationSeconds,
+      completed: true,
+    );
+    _handle.replay();
   }
 
   Future<void> _persist() async {
@@ -86,6 +64,13 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
       position: _lastPosition,
       duration: _video.durationSeconds,
     );
+  }
+
+  Future<void> _openSignIn() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const YoutubeSignInScreen()),
+    );
+    _handle.reload(); // retry playback with the signed-in session
   }
 
   @override
@@ -103,15 +88,19 @@ class _SinglePlayerScreenState extends State<SinglePlayerScreen>
     _saveTimer?.cancel();
     _persist();
     WidgetsBinding.instance.removeObserver(this);
-    _player.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return PipPlayerScaffold(
-      controller: _player,
+    return WebPipPlayerScaffold(
+      videoId: _video.videoId,
+      startSeconds: _initialStart,
       title: _video.title,
+      handle: _handle,
+      onProgress: _onProgress,
+      onEnded: _onEnded,
+      onSignIn: _openSignIn,
       below: const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
