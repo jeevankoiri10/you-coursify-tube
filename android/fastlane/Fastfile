@@ -1,0 +1,64 @@
+# Fastlane for You Coursify Tube (Android).
+#
+# IMPORTANT: Google's Play Developer API can only UPDATE an app that already
+# exists. The FIRST release for com.youcoursifytube.app must be created and
+# uploaded by hand in the Play Console (see PLAYSTORE.md). After that one-time
+# step, these lanes automate every upload.
+#
+# Usage:
+#   bundle install                 # once, installs fastlane from the Gemfile
+#   fastlane android internal      # build + upload to Internal testing
+#   fastlane android production     # build + upload to Production
+#   fastlane android metadata       # update store listing only (no build)
+
+default_platform(:android)
+
+# Flutter writes the App Bundle here, relative to android/ (where fastlane runs).
+AAB_PATH = "../build/app/outputs/bundle/release/app-release.aab"
+
+platform :android do
+  desc "Build the signed release App Bundle with Flutter"
+  lane :build do
+    Dir.chdir("..") do # android/ -> Flutter project root
+      sh("flutter", "build", "appbundle", "--release")
+    end
+  end
+
+  desc "Build + upload to the Play Internal testing track"
+  lane :internal do
+    build
+    upload_to_play_store(
+      track: "internal",
+      aab: AAB_PATH,
+      release_status: "completed",
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Build + upload to Production (with store listing + changelog)"
+  lane :production do
+    build
+    upload_to_play_store(
+      track: "production",
+      aab: AAB_PATH,
+      release_status: "completed",
+      skip_upload_apk: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Upload only the store listing / metadata (no new build)"
+  lane :metadata do
+    upload_to_play_store(
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_changelogs: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+end

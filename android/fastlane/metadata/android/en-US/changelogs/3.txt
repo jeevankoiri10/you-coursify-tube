@@ -1,0 +1,4 @@
+• Smoother Picture-in-Picture — keeps playing continuously
+• Landscape fullscreen with a reachable seek bar
+• Distraction-free in-app player (only the video you pasted)
+• Copy-link buttons and automatic on-device restore

@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Fastlane
+**/play-service-account.json
+android/fastlane/report.xml
+android/fastlane/Preview.html
+android/fastlane/screenshots/**
+android/.bundle/
+android/vendor/bundle/

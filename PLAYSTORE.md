@@ -58,6 +58,36 @@ AAB to Internal testing automatically.
 
 ---
 
+## Fastlane (local / alternative to the GitHub Action)
+
+[`android/fastlane`](android/fastlane) automates uploads from your machine, as an
+alternative to the CI workflow. It uses the **same** service-account JSON and the
+same Play API, so it has the **same first-upload limitation**: steps 1–5 above must
+be done once before any lane will work.
+
+```bash
+cd android
+bundle install                       # once — installs fastlane from the Gemfile
+
+# point fastlane at the service-account key (or drop it at
+# android/play-service-account.json, which is gitignored)
+export PLAY_JSON_KEY_FILE=/path/to/service-account.json
+
+bundle exec fastlane android internal     # build + upload to Internal testing
+bundle exec fastlane android production    # build + upload to Production
+bundle exec fastlane android metadata      # update the store listing only
+```
+
+Store-listing text lives in
+[`android/fastlane/metadata/android/en-US`](android/fastlane/metadata/android/en-US)
+(`title.txt`, `short_description.txt`, `full_description.txt`, and per-version-code
+`changelogs/<code>.txt`). Edit those, then run the `metadata` lane to push them.
+
+> The lanes upload an **App Bundle** to the chosen track. Promotion between tracks
+> (e.g. internal → production) can still be done in the console.
+
+---
+
 ## Promote to production
 The automation stops at Internal testing on purpose. When a build is verified:
 - Play Console → **Testing → Internal testing → Promote release → Production**.

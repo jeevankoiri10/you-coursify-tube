@@ -1,0 +1,7 @@
+# Play Store package and service-account key used by `fastlane supply`.
+#
+# Provide the service-account JSON one of two ways:
+#   - set PLAY_JSON_KEY_FILE to its path, or
+#   - drop it at android/play-service-account.json (gitignored).
+json_key_file(ENV["PLAY_JSON_KEY_FILE"] || "play-service-account.json")
+package_name("com.youcoursifytube.app")
