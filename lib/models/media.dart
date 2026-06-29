@@ -17,6 +17,9 @@ class VideoItem {
   final String? thumbnailUrl;
   final int? durationSeconds;
 
+  /// Canonical YouTube watch URL for this video.
+  String get url => 'https://www.youtube.com/watch?v=$videoId';
+
   /// Where the user left off, in seconds — what makes "resume" work.
   double positionSeconds;
   bool completed;
@@ -86,6 +89,9 @@ class PlaylistData {
   int currentIndex;
 
   VideoItem get current => videos[currentIndex.clamp(0, videos.length - 1)];
+
+  /// Canonical YouTube playlist URL.
+  String get url => 'https://www.youtube.com/playlist?list=$playlistId';
 
   Map<String, dynamic> toJson() => {
         'playlistId': playlistId,

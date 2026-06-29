@@ -36,6 +36,9 @@ class LibraryItem {
 
   bool get isPlaylist => type == ItemType.playlist;
 
+  /// Canonical YouTube URL for this saved item (the playlist, or the video).
+  String? get url => isPlaylist ? playlist?.url : video?.url;
+
   /// Short progress description for tiles.
   String get subtitle {
     if (type == ItemType.playlist) {

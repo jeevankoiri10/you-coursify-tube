@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/library.dart';
 import '../state/library_controller.dart';
+import '../utils/clipboard.dart';
 import '../utils/format.dart';
 
 /// A row representing one saved link (video or playlist) for History and folder
@@ -115,13 +116,24 @@ class ItemTile extends StatelessWidget {
             ),
         ],
       ),
-      trailing: onDelete == null
-          ? const Icon(Icons.play_arrow)
-          : IconButton(
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.link),
+            tooltip: 'Copy link',
+            onPressed: () => copyLink(context, item.url),
+          ),
+          if (onDelete == null)
+            const Icon(Icons.play_arrow)
+          else
+            IconButton(
               icon: const Icon(Icons.more_vert),
               onPressed: onDelete,
               tooltip: 'Remove',
             ),
+        ],
+      ),
       onTap: onTap,
     );
   }
