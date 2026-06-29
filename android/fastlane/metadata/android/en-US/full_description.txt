@@ -1,0 +1,16 @@
+You Coursify Tube turns YouTube into a focused study tool.
+
+Paste any video or playlist link and it's saved to your personal library, organized into folders with notes. Videos play in a clean, distraction-free in-app player that shows only what you pasted — no related videos, no comments, no rabbit holes.
+
+Features:
+• Save videos and playlists into folders
+• Distraction-free player — only the video you chose, nothing else
+• Resume exactly where you left off, every time
+• Picture-in-Picture: keep watching while you use other apps
+• Landscape fullscreen with full seek control
+• Take notes alongside your videos
+• Sign in to YouTube for gated content
+• Copy links and export / import your whole library
+• Automatic on-device backups so your library is never lost
+
+Stay on track and actually finish the courses you start.
