@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:simple_pip_mode/actions/pip_action.dart';
 import 'package:simple_pip_mode/actions/pip_actions_layout.dart';
 import 'package:simple_pip_mode/simple_pip.dart';
@@ -86,6 +87,7 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
   bool _loading = true;
   bool _signInNeeded = false;
   bool _autoPipAvailable = false;
+  bool _fullscreen = false;
   bool? _lastPlaying;
 
   // Hides YouTube's chrome, locks scrolling to the player, autoplays, and
@@ -320,6 +322,29 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
     } catch (_) {}
   }
 
+  // --- Landscape fullscreen ------------------------------------------------
+
+  Future<void> _toggleFullscreen() async {
+    final entering = !_fullscreen;
+    setState(() => _fullscreen = entering);
+    if (entering) {
+      // Rotate to landscape and hide the status/navigation bars (no battery
+      // or notification icons) for a clean, immersive full-screen video.
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      await _exitFullscreenSystemUi();
+    }
+  }
+
+  Future<void> _exitFullscreenSystemUi() async {
+    await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
   void _onPipAction(PipAction action) {
     switch (action) {
       case PipAction.play:
@@ -339,91 +364,123 @@ class _WebPipPlayerScaffoldState extends State<WebPipPlayerScaffold> {
   void dispose() {
     // Don't leave auto-PiP armed once the player is gone.
     _setAutoPip(false);
+    // Never leave the device locked to landscape / immersive after leaving.
+    if (_fullscreen) _exitFullscreenSystemUi();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: _isPip
-          ? null
-          : AppBar(
-              title: Text(
-                widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    // In PiP or fullscreen the surrounding app chrome (AppBar, below content)
+    // is hidden and the player fills the available space.
+    final chromeless = _isPip || _fullscreen;
+    return PopScope(
+      canPop: !_fullscreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _fullscreen) _toggleFullscreen();
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: chromeless
+            ? null
+            : AppBar(
+                title: Text(
+                  widget.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                actions: [
+                  IconButton(
+                    tooltip: 'Sign in to YouTube',
+                    icon: const Icon(Icons.account_circle_outlined),
+                    onPressed: widget.onSignIn,
+                  ),
+                  IconButton(
+                    tooltip: 'Fullscreen (landscape)',
+                    icon: const Icon(Icons.fullscreen),
+                    onPressed: _toggleFullscreen,
+                  ),
+                  IconButton(
+                    tooltip: 'Play in a floating window',
+                    icon: const Icon(Icons.picture_in_picture_alt),
+                    onPressed: _enterPip,
+                  ),
+                ],
               ),
-              actions: [
-                IconButton(
-                  tooltip: 'Sign in to YouTube',
-                  icon: const Icon(Icons.account_circle_outlined),
-                  onPressed: widget.onSignIn,
-                ),
-                IconButton(
-                  tooltip: 'Play in a floating window',
-                  icon: const Icon(Icons.picture_in_picture_alt),
-                  onPressed: _enterPip,
-                ),
-              ],
-            ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          // 16:9 normally, but never taller than the space available (avoids
-          // overflow in landscape / small windows). In PiP, fill the window.
-          final playerHeight = _isPip
-              ? constraints.maxHeight
-              : (constraints.maxWidth * 9 / 16).clamp(0.0, constraints.maxHeight);
-          return Column(
-            children: [
-              if (_signInNeeded && !_isPip)
-                Material(
-                  color: const Color(0xFF4A3B00),
-                  child: InkWell(
-                    onTap: widget.onSignIn,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      child: Row(
-                        children: const [
-                          Icon(Icons.info_outline,
-                              color: Colors.amber, size: 18),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'YouTube needs you to sign in. Tap the account '
-                              'icon at the top right to sign in, then it will '
-                              'play.',
-                              style: TextStyle(
-                                  color: Colors.white, fontSize: 13),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            // Fill the screen in PiP/fullscreen; otherwise 16:9 capped to the
+            // available height (avoids overflow in landscape / small windows).
+            final playerHeight = chromeless
+                ? constraints.maxHeight
+                : (constraints.maxWidth * 9 / 16)
+                    .clamp(0.0, constraints.maxHeight);
+            return Column(
+              children: [
+                if (_signInNeeded && !chromeless)
+                  Material(
+                    color: const Color(0xFF4A3B00),
+                    child: InkWell(
+                      onTap: widget.onSignIn,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: const [
+                            Icon(Icons.info_outline,
+                                color: Colors.amber, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'YouTube needs you to sign in. Tap the account '
+                                'icon at the top right to sign in, then it will '
+                                'play.',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 13),
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.account_circle, color: Colors.amber),
-                        ],
+                            SizedBox(width: 8),
+                            Icon(Icons.account_circle, color: Colors.amber),
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                SizedBox(
+                  width: constraints.maxWidth,
+                  height: playerHeight,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      WebViewWidget(controller: _web),
+                      if (_loading)
+                        const ColoredBox(
+                          color: Colors.black,
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      if (_fullscreen)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Material(
+                            color: Colors.black45,
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              tooltip: 'Exit fullscreen',
+                              icon: const Icon(Icons.fullscreen_exit,
+                                  color: Colors.white),
+                              onPressed: _toggleFullscreen,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              SizedBox(
-                width: constraints.maxWidth,
-                height: playerHeight,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    WebViewWidget(controller: _web),
-                    if (_loading)
-                      const ColoredBox(
-                        color: Colors.black,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                  ],
-                ),
-              ),
-              if (!_isPip) Expanded(child: widget.below),
-            ],
-          );
-        },
+                if (!chromeless) Expanded(child: widget.below),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
