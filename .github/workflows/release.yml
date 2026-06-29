@@ -16,6 +16,10 @@ jobs:
   build:
     name: Build & publish release
     runs-on: ubuntu-latest
+    # The `secrets` context can't be used in an `if:` condition, so surface the
+    # Play service-account secret as an env var the conditional can read.
+    env:
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,7 +84,7 @@ jobs:
       # NOTE: the very first release for this package must be uploaded MANUALLY in
       # the Play Console once — the API rejects uploads until a build exists.
       - name: Upload to Google Play (internal testing)
-        if: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        if: ${{ env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
