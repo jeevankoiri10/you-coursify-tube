@@ -5,6 +5,7 @@ import '../state/library_controller.dart';
 import 'backup_screen.dart';
 import 'directory_tab.dart';
 import 'home_tab.dart';
+import 'youtube_signin_screen.dart';
 
 /// The root screen after launch: a bottom nav bar switching between Home (paste,
 /// continue watching, history) and Directory (folders).
@@ -40,6 +41,18 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
+  Future<void> _openYoutubeSignIn() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const YoutubeSignInScreen()),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Signed-in session saved. Reopen a video to play it.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -54,6 +67,11 @@ class _HomeShellState extends State<HomeShell> {
             title: const Text('You Coursify Tube'),
             centerTitle: false,
             actions: [
+              IconButton(
+                icon: const Icon(Icons.account_circle_outlined),
+                tooltip: 'Sign in to YouTube',
+                onPressed: _openYoutubeSignIn,
+              ),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
                 tooltip: 'More options',
